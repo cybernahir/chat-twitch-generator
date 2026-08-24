@@ -1,0 +1,21 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "18"
+
+# El login vive en netlify/edge-functions/gate.ts y declara sus propias rutas
+# ("/" y "/index.html"). /overlay.html queda fuera a propósito: OBS no puede
+# atravesar un formulario de login.
+
+# Alias cómodo para la fuente de navegador.
+[[redirects]]
+  from = "/overlay"
+  to = "/overlay.html"
+  status = 200
+
+[[headers]]
+  for = "/overlay.html"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"

@@ -1,0 +1,138 @@
+/* Estilos del overlay. Se usan igual en la preview del editor y en la ruta /overlay. */
+
+.ov-stage {
+  position: relative;
+  overflow: hidden;
+}
+
+.ov-rotor {
+  width: 100%;
+  height: 100%;
+  transform-origin: center center;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.ov-list {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.ov-row {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  animation: ov-in var(--anim-ms, 350ms) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ov-inner {
+  display: inline;
+}
+
+.ov-inner.is-stacked {
+  display: block;
+}
+
+.ov-inner.is-stacked .ov-head {
+  display: flex;
+  margin-bottom: 0.15em;
+}
+
+.ov-inner.is-stacked .ov-text {
+  display: block;
+}
+
+.ov-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32em;
+  vertical-align: middle;
+  margin-right: 0.35em;
+}
+
+.ov-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-shadow: none;
+  flex: 0 0 auto;
+  line-height: 1;
+}
+
+.ov-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  line-height: 1;
+  text-shadow: none;
+  font-family: system-ui, sans-serif;
+}
+
+.ov-user {
+  white-space: nowrap;
+}
+
+.ov-text {
+  vertical-align: middle;
+}
+
+/* --- Animaciones de entrada --- */
+
+.ov-anim-none .ov-row {
+  animation: none;
+}
+
+@keyframes ov-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.ov-anim-slide-left .ov-row {
+  animation-name: ov-in-slide-left;
+}
+@keyframes ov-in-slide-left {
+  from { opacity: 0; transform: translateX(-28px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.ov-anim-slide-right .ov-row {
+  animation-name: ov-in-slide-right;
+}
+@keyframes ov-in-slide-right {
+  from { opacity: 0; transform: translateX(28px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.ov-anim-slide-up .ov-row {
+  animation-name: ov-in-slide-up;
+}
+@keyframes ov-in-slide-up {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.ov-anim-pop .ov-row {
+  animation-name: ov-in-pop;
+}
+@keyframes ov-in-pop {
+  0% { opacity: 0; transform: scale(0.72); }
+  70% { opacity: 1; transform: scale(1.06); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* La página /overlay tiene que ser transparente para OBS. */
+body.overlay-mode {
+  margin: 0;
+  background: transparent !important;
+  overflow: hidden;
+}
