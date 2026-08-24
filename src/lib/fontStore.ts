@@ -93,18 +93,39 @@ export function readFileAsDataUrl(file: File): Promise<string> {
   })
 }
 
-/** Registra la fuente en el documento actual bajo el nombre indicado. */
-export function injectFontFace(name: string, src: string): void {
-  const id = 'custom-font-face'
+/**
+ * Registro de fuentes propias ya declaradas en el documento.
+ *
+ * Es un mapa y no una sola regla porque la biblioteca de presets muestra
+ * varias miniaturas a la vez y cada preset puede traer su propia fuente: si
+ * reescribiéramos una única @font-face, la última cargada le pisaría la
+ * tipografía a todas las demás.
+ */
+const faces = new Map<string, string>()
+
+function renderFaces(): void {
+  const id = 'custom-font-faces'
   let style = document.getElementById(id) as HTMLStyleElement | null
   if (!style) {
     style = document.createElement('style')
     style.id = id
     document.head.appendChild(style)
   }
-  style.textContent = `@font-face{font-family:"${name}";src:url("${src}");font-display:swap;}`
+  style.textContent = Array.from(faces)
+    .map(([name, src]) => `@font-face{font-family:"${name}";src:url("${src}");font-display:swap;}`)
+    .join('\n')
 }
 
-export function removeFontFace(): void {
-  document.getElementById('custom-font-face')?.remove()
+/** Registra la fuente en el documento actual bajo el nombre indicado. */
+export function injectFontFace(name: string, src: string): void {
+  if (!name || !src || faces.get(name) === src) return
+  faces.set(name, src)
+  renderFaces()
+}
+
+/** Sin nombre borra todas; con nombre, sólo esa. */
+export function removeFontFace(name?: string): void {
+  if (name) faces.delete(name)
+  else faces.clear()
+  renderFaces()
 }

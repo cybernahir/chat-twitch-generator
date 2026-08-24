@@ -23,11 +23,9 @@ function initials(name: string): string {
 interface Props {
   config: ChatConfig
   messages: ChatMessage[]
-  /** El editor lo usa para escalar la preview sin tocar el tamaño real. */
-  previewScale?: number
 }
 
-export default function ChatOverlay({ config, messages, previewScale = 1 }: Props) {
+export default function ChatOverlay({ config, messages }: Props) {
   const c = config
 
   // Carga de fuentes: Google Fonts o la @font-face del .ttf del streamer.
@@ -69,7 +67,7 @@ export default function ChatOverlay({ config, messages, previewScale = 1 }: Prop
       `rotateX(${c.rotateX}deg)`,
       `rotateY(${c.rotateY}deg)`,
       `rotateZ(${c.rotateZ}deg)`,
-      `scale(${c.scale * previewScale})`,
+      `scale(${c.scale})`,
     ].join(' '),
   }
 

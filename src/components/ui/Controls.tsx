@@ -1,24 +1,29 @@
 import type { ReactNode } from 'react'
 
+/**
+ * Bloque de controles con encabezado propio. Ya no colapsa: la navegación
+ * lateral hace el agrupado grueso, así que acá alcanza con separar por aire
+ * y una hairline en vez de meter un acordeón adentro de otro.
+ */
 export function Section({
   title,
   hint,
   children,
-  defaultOpen = true,
 }: {
-  title: string
+  title?: string
   hint?: string
   children: ReactNode
-  defaultOpen?: boolean
 }) {
   return (
-    <details className="section" open={defaultOpen}>
-      <summary>
-        <span>{title}</span>
-        {hint && <em>{hint}</em>}
-      </summary>
-      <div className="section-body">{children}</div>
-    </details>
+    <section className="block">
+      {title && (
+        <header className="block-head">
+          <h3>{title}</h3>
+          {hint && <span className="block-hint">{hint}</span>}
+        </header>
+      )}
+      <div className="block-body">{children}</div>
+    </section>
   )
 }
 
@@ -48,14 +53,15 @@ export function Slider({
   suffix?: string
   onChange: (v: number) => void
 }) {
+  const pct = ((value - min) / (max - min)) * 100
   return (
     <div className="row row-slider">
       <span className="row-label">
         {label}
-        <b>
+        <output className="readout">
           {value}
           {suffix}
-        </b>
+        </output>
       </span>
       <input
         type="range"
@@ -63,6 +69,7 @@ export function Slider({
         max={max}
         step={step}
         value={value}
+        style={{ ['--fill' as string]: `${pct}%` }}
         onChange={(e) => onChange(Number(e.target.value))}
       />
     </div>
@@ -81,11 +88,14 @@ export function ColorInput({
   return (
     <div className="row">
       <span className="row-label">{label}</span>
-      <span className="row-control color-control">
-        <input type="color" value={value} onChange={(e) => onChange(e.target.value)} />
+      <span className="row-control swatch-control">
+        <span className="swatch" style={{ background: value }}>
+          <input type="color" value={value} onChange={(e) => onChange(e.target.value)} />
+        </span>
         <input
           type="text"
           className="hex"
+          spellCheck={false}
           value={value.toUpperCase()}
           onChange={(e) => {
             const v = e.target.value.trim()
@@ -109,7 +119,7 @@ export function Select<T extends string>({
   onChange: (v: T) => void
 }) {
   return (
-    <Row label={label}>
+    <Row label={label} wide>
       <select value={value} onChange={(e) => onChange(e.target.value as T)}>
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -147,19 +157,20 @@ export function SegmentedControl<T extends string>({
   options,
   onChange,
 }: {
-  label: string
+  label?: string
   value: T
   options: { value: T; label: string }[]
   onChange: (v: T) => void
 }) {
   return (
     <div className="row row-wide">
-      <span className="row-label">{label}</span>
-      <div className="segmented">
+      {label && <span className="row-label">{label}</span>}
+      <div className="segmented" role="group">
         {options.map((o) => (
           <button
             key={o.value}
             type="button"
+            aria-pressed={value === o.value}
             className={value === o.value ? 'active' : ''}
             onClick={() => onChange(o.value)}
           >
@@ -168,5 +179,37 @@ export function SegmentedControl<T extends string>({
         ))}
       </div>
     </div>
+  )
+}
+
+export function NumberField({
+  label,
+  value,
+  min,
+  max,
+  suffix,
+  onChange,
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  suffix?: string
+  onChange: (v: number) => void
+}) {
+  return (
+    <label className="row">
+      <span className="row-label">{label}</span>
+      <span className="row-control stepper">
+        <input
+          type="number"
+          min={min}
+          max={max}
+          value={value}
+          onChange={(e) => onChange(Math.min(max, Math.max(min, Number(e.target.value) || min)))}
+        />
+        {suffix && <span className="stepper-suffix">{suffix}</span>}
+      </span>
+    </label>
   )
 }

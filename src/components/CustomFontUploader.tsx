@@ -1,3 +1,4 @@
+import { CheckCircle, UploadSimple, WarningCircle } from '@phosphor-icons/react'
 import { useRef, useState } from 'react'
 import { CUSTOM_FONT_FAMILY } from '../fonts'
 import { clearFont, injectFontFace, readFileAsDataUrl, removeFontFace, saveFont } from '../lib/fontStore'
@@ -28,12 +29,14 @@ export default function CustomFontUploader({ config, patch }: Props) {
   const handleFile = async (file: File) => {
     setError(null)
 
-    if (!/\.(ttf|otf|woff2?|TTF|OTF|WOFF2?)$/.test(file.name)) {
+    if (!/\.(ttf|otf|woff2?)$/i.test(file.name)) {
       setError('Formato no soportado. Subí un archivo .ttf, .otf, .woff o .woff2.')
       return
     }
     if (file.size > HARD_LIMIT_BYTES) {
-      setError(`La fuente pesa ${prettySize(file.size)}. El máximo es 2 MB — convertila a .woff2 y va a pesar mucho menos.`)
+      setError(
+        `La fuente pesa ${prettySize(file.size)} y el máximo es 2 MB. Convertila a .woff2 y va a pesar mucho menos.`,
+      )
       return
     }
 
@@ -60,7 +63,7 @@ export default function CustomFontUploader({ config, patch }: Props) {
   }
 
   const remove = async () => {
-    removeFontFace()
+    removeFontFace(config.customFontName)
     await clearFont()
     setSize(null)
     patch({
@@ -108,21 +111,27 @@ export default function CustomFontUploader({ config, patch }: Props) {
             e.target.value = ''
           }}
         />
+        <UploadSimple size={22} />
         <strong>{busy ? 'Cargando…' : 'Subí tu .ttf'}</strong>
-        <span>Arrastrá el archivo o hacé clic. También acepta .otf, .woff y .woff2</span>
+        <span>Arrastralo acá o hacé clic. También acepta .otf, .woff y .woff2</span>
       </div>
 
-      {error && <p className="uploader-error">{error}</p>}
+      {error && (
+        <p className="uploader-error">
+          <WarningCircle size={15} weight="fill" />
+          {error}
+        </p>
+      )}
 
       {active && (
         <div className="uploader-active">
           <div className="uploader-file">
-            <span className="dot" />
+            <CheckCircle size={17} weight="fill" />
             <div>
               <b>{config.customFontName}</b>
-              <small>{dataBytes ? prettySize(dataBytes) : 'guardada'}</small>
+              <span className="readout faint">{dataBytes ? prettySize(dataBytes) : 'guardada'}</span>
             </div>
-            <button type="button" className="btn-ghost" onClick={() => void remove()}>
+            <button type="button" className="btn btn-ghost" onClick={() => void remove()}>
               Quitar
             </button>
           </div>
@@ -137,7 +146,7 @@ export default function CustomFontUploader({ config, patch }: Props) {
           {config.fontFamily !== CUSTOM_FONT_FAMILY && (
             <button
               type="button"
-              className="btn-secondary"
+              className="btn btn-secondary btn-block"
               onClick={() => patch({ fontFamily: CUSTOM_FONT_FAMILY })}
             >
               Usar esta fuente en el chat
@@ -146,9 +155,12 @@ export default function CustomFontUploader({ config, patch }: Props) {
 
           {dataBytes > URL_WARN_BYTES && (
             <p className="uploader-warn">
-              La fuente pesa {prettySize(dataBytes)} y viaja embebida en el link de OBS, así que el
-              link va a quedar larguísimo. Funciona igual, pero si podés convertila a <b>.woff2</b>{' '}
-              (suele bajar a menos de 100 KB) y volvé a subirla.
+              <WarningCircle size={15} weight="fill" />
+              <span>
+                Pesa {prettySize(dataBytes)} y viaja embebida en el link de OBS, así que el link va a
+                quedar larguísimo. Funciona igual, pero si podés convertila a <b>.woff2</b>, que
+                suele bajar a menos de 100 KB.
+              </span>
             </p>
           )}
         </div>
@@ -156,7 +168,7 @@ export default function CustomFontUploader({ config, patch }: Props) {
 
       <div className="uploader-alt">
         <label className="row row-wide">
-          <span className="row-label">…o pegá la URL de una fuente ya hosteada</span>
+          <span className="row-label">O pegá la URL de una fuente ya hosteada</span>
           <input
             type="url"
             placeholder="https://misitio.com/mifuente.woff2"
@@ -175,7 +187,7 @@ export default function CustomFontUploader({ config, patch }: Props) {
         </label>
         <small className="hint">
           Con una URL el link para OBS queda corto. El archivo tiene que servirse por HTTPS y con
-          CORS abierto (Google Fonts, jsDelivr, tu propio hosting…).
+          CORS abierto: Google Fonts, jsDelivr, tu propio hosting.
         </small>
       </div>
     </div>

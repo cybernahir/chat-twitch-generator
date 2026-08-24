@@ -1,3 +1,4 @@
+import { CaretDown } from '@phosphor-icons/react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CUSTOM_FONT_FAMILY, FONTS, FONT_GROUPS, ensureGoogleFont } from '../fonts'
 
@@ -74,7 +75,7 @@ export default function FontPicker({ value, customFontName, hasCustomFont, onCha
           >
             {currentLabel}
           </span>
-          <i className="caret" />
+          <CaretDown size={13} />
         </button>
 
         {open && (

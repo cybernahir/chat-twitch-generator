@@ -102,3 +102,13 @@ export interface ChatConfig {
   customFontUrl?: string
   customFontData?: string
 }
+
+export interface Preset {
+  id: string
+  name: string
+  updatedAt: number
+  config: ChatConfig
+}
+
+/** Dónde terminaron guardándose los presets, para poder decírselo al usuario. */
+export type PresetStorageMode = 'cloud' | 'local'

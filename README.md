@@ -61,6 +61,37 @@ su cuenta; lo que no puede es usar *tu* sitio. Para el caso de uso —que sólo 
 streamer entre a tu editor— alcanza. Si necesitaras cerrar también eso, hay que
 pasar a Netlify password protection a nivel sitio (plan pago).
 
+## Presets
+
+Después del login, la primera pantalla es la biblioteca de presets. Cada preset
+guarda un chat entero: la fuente, los colores, la rotación, el ritmo y el tamaño
+del lienzo. Si todavía no hay ninguno, la pantalla muestra el estado vacío con el
+botón para crear el primero.
+
+En el editor, la barra de arriba tiene el nombre del preset (editable en el
+mismo lugar) y **Guardar preset**. No hay autoguardado a propósito: el streamer
+decide cuándo pisar lo que ya tenía. Si intenta salir con cambios sin guardar,
+el navegador le pregunta antes.
+
+### Dónde se guardan
+
+El pedido era poder entrar desde otra computadora, y **localStorage no sirve
+para eso**: vive en un navegador concreto y no viaja. Así que hay dos capas:
+
+| Capa | Cuándo se usa | Alcance |
+| --- | --- | --- |
+| **Netlify Blobs**, vía `/api/presets` | Siempre que haya backend | Cualquier computadora, entrando con la clave |
+| **localStorage** | Cuando no hay backend (`npm run dev`) | Sólo ese navegador |
+
+Cuando la API responde, además se deja una copia en localStorage como caché para
+que la biblioteca pinte al instante en la próxima visita. La pantalla dice cuál
+de las dos está usando, así que nunca hay que adivinar.
+
+La API está protegida con la misma sesión que el editor: `netlify/functions/presets.mts`
+verifica la cookie firmada antes de tocar el store, reusando
+`netlify/shared/session.ts`, el mismo módulo que usa el gate. La verificación de
+seguridad está escrita una sola vez.
+
 ## Cómo funciona el link de OBS
 
 No hay base de datos: toda la configuración se serializa a JSON, se codifica en
@@ -149,34 +180,40 @@ router del lado del cliente ni reglas de rewrite.
 ## Estructura
 
 ```
-index.html                   entrada del editor    -> protegida por el gate
+index.html                   entrada de la app     -> protegida por el gate
 overlay.html                 entrada del overlay   -> pública, la consume OBS
 
-netlify/edge-functions/
-  gate.ts                    login: cookie firmada con HMAC, corre en el borde
+netlify/
+  shared/session.ts          firma y verificación de la cookie (gate + API)
+  edge-functions/gate.ts     login, corre en el borde antes de servir el HTML
+  functions/presets.mts      API de presets sobre Netlify Blobs
 
 src/
-  main.tsx                   monta el editor
+  App.tsx                    rutas por hash: biblioteca o editor
+  main.tsx                   monta la app
   overlay-main.tsx           monta el overlay
   defaults.ts                config por defecto, pools de usuarios/mensajes
   fonts.ts                   catálogo de fuentes + carga perezosa de Google Fonts
-  types.ts                   ChatConfig y compañía
+  types.ts                   ChatConfig, Preset y compañía
   lib/
     encode.ts                config <-> base64url en la URL
-    fontStore.ts             IndexedDB + @font-face para la fuente propia
+    presetStore.ts           API de presets con respaldo en localStorage
+    fontStore.ts             IndexedDB + @font-face para las fuentes propias
+    useHashRoute.ts          router mínimo de dos pantallas
     useChatFeed.ts           motor de mensajes simulados
   components/
-    ChatOverlay.tsx          el render del chat (preview y OBS usan el mismo)
+    ChatOverlay.tsx          el render del chat (preview, miniaturas y OBS)
     Badge.tsx                insignias
     FontPicker.tsx           selector de fuentes con preview real
     CustomFontUploader.tsx   subida del .ttf
     ScriptEditor.tsx         lista de mensajes propios
     ui/Controls.tsx          sliders, colores, toggles, etc.
   pages/
+    LibraryPage.tsx          biblioteca de presets con miniaturas en vivo
     EditorPage.tsx           panel de control
     OverlayPage.tsx          página transparente para OBS
   styles/
-    app.css                  UI del editor
+    app.css                  UI de la app
     overlay.css              estilos del chat
 ```
 

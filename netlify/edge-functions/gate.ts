@@ -1,4 +1,12 @@
 import type { Config, Context } from '@netlify/edge-functions'
+import {
+  MAX_AGE,
+  SESSION_COOKIE,
+  UI_COOKIE,
+  createToken,
+  isValidToken,
+  safeEqual,
+} from '../shared/session.ts'
 
 /**
  * Puerta de entrada al editor.
@@ -10,62 +18,7 @@ import type { Config, Context } from '@netlify/edge-functions'
  * El overlay (/overlay.html) queda fuera a propósito: OBS no puede loguearse.
  */
 
-const SESSION_COOKIE = 'cg_session'
-const UI_COOKIE = 'cg_auth' // legible por JS, sólo para que la UI sepa que hay sesión
-const MAX_AGE = 60 * 60 * 24 * 30 // 30 días
 const FAILED_LOGIN_DELAY_MS = 400
-
-/* ------------------------------ firma ------------------------------ */
-
-function toBase64Url(bytes: Uint8Array): string {
-  let binary = ''
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-async function sign(secret: string, data: string): Promise<string> {
-  const enc = new TextEncoder()
-  const key = await crypto.subtle.importKey(
-    'raw',
-    enc.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  )
-  const signature = await crypto.subtle.sign('HMAC', key, enc.encode(data))
-  return toBase64Url(new Uint8Array(signature))
-}
-
-/** Comparación en tiempo constante: no filtra cuántos caracteres acertaste. */
-function safeEqual(a: string, b: string): boolean {
-  const enc = new TextEncoder()
-  const ba = enc.encode(a)
-  const bb = enc.encode(b)
-  // Comparamos siempre la misma cantidad de bytes; la diferencia de largo
-  // se arrastra en `diff` para no cortar antes de tiempo.
-  let diff = ba.length ^ bb.length
-  const len = Math.max(ba.length, bb.length)
-  for (let i = 0; i < len; i++) diff |= (ba[i] ?? 0) ^ (bb[i] ?? 0)
-  return diff === 0
-}
-
-async function createToken(secret: string): Promise<string> {
-  const exp = String(Date.now() + MAX_AGE * 1000)
-  return `${exp}.${await sign(secret, exp)}`
-}
-
-async function isValidToken(secret: string, token: string | undefined): Promise<boolean> {
-  if (!token) return false
-  const dot = token.indexOf('.')
-  if (dot < 1) return false
-
-  const exp = token.slice(0, dot)
-  const signature = token.slice(dot + 1)
-  if (!safeEqual(signature, await sign(secret, exp))) return false
-
-  const expMs = Number(exp)
-  return Number.isFinite(expMs) && expMs > Date.now()
-}
 
 /* ------------------------------ cookies ------------------------------ */
 
@@ -86,70 +39,88 @@ function clearSessionCookies(headers: Headers, url: URL): void {
 
 /* ------------------------------ páginas ------------------------------ */
 
+/* Mismos tokens que src/styles/app.css: fondo oscuro, borde de 1.5px, esquinas
+   casi rectas, sombra dura sin desenfoque y el morado de Twitch como acento. */
 const PAGE_STYLES = `
   *{box-sizing:border-box}
   body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;
-       background:#0b0b10;color:#ecedf3;
-       font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+       background:#08080c;color:#edeef4;
+       font-family:'Space Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;
        -webkit-font-smoothing:antialiased}
-  .card{width:100%;max-width:380px;background:#16161f;border:1px solid #272733;
-        border-radius:16px;padding:32px 28px;
-        box-shadow:0 30px 80px rgba(0,0,0,.55)}
-  .logo{width:44px;height:44px;border-radius:13px;position:relative;margin-bottom:20px;
-        background:linear-gradient(135deg,#9146ff 0%,#ff70c8 100%);
-        box-shadow:0 8px 26px rgba(145,70,255,.4)}
-  .logo::after{content:'';position:absolute;inset:12px 12px 16px 12px;border-radius:3px;
-        background:rgba(255,255,255,.92);
-        clip-path:polygon(0 0,100% 0,100% 70%,62% 70%,40% 100%,40% 70%,0 70%)}
-  h1{margin:0 0 6px;font-size:19px;letter-spacing:-.01em}
-  p.sub{margin:0 0 22px;font-size:13px;line-height:1.6;color:#8b8c9c}
-  label{display:block;font-size:12px;color:#8b8c9c;margin-bottom:7px}
-  input{width:100%;background:#0f0f16;border:1px solid #272733;border-radius:9px;
-        padding:11px 13px;color:#ecedf3;font-size:14px;font-family:inherit;outline:none}
-  input:focus{border-color:#9146ff}
-  button{width:100%;margin-top:14px;background:#9146ff;color:#fff;border:none;
-         border-radius:9px;padding:12px;font-size:14px;font-weight:600;font-family:inherit;
-         cursor:pointer}
-  button:hover{background:#a566ff}
-  .error{margin:0 0 16px;font-size:12.5px;line-height:1.5;color:#ff8fa3;
-         background:rgba(255,84,112,.1);border:1px solid rgba(255,84,112,.28);
-         padding:10px 12px;border-radius:9px}
-  .foot{margin:20px 0 0;font-size:11px;color:#5f6072;text-align:center;line-height:1.6}
-  code{background:#0f0f16;border:1px solid #272733;border-radius:5px;padding:1px 5px;
-       font-size:11px;color:#bf94ff}
+  .card{width:100%;max-width:392px;background:#101017;border:1.5px solid #2b2b3a;
+        border-radius:6px;padding:30px 28px;box-shadow:5px 5px 0 #55199f}
+  .mark{display:inline-flex;align-items:center;gap:8px;margin-bottom:22px;
+        border:1.5px solid #a06bff;border-radius:4px;padding:4px 9px 4px 5px;
+        background:#9146ff;color:#fff;font-family:'JetBrains Mono',monospace;
+        font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+  .mark i{width:11px;height:11px;background:#fff;display:block;
+        clip-path:polygon(0 0,100% 0,100% 68%,60% 68%,38% 100%,38% 68%,0 68%)}
+  h1{margin:0 0 8px;font-family:'Bricolage Grotesque',system-ui,sans-serif;
+     font-size:30px;font-weight:700;line-height:1.05;letter-spacing:-.03em}
+  p.sub{margin:0 0 24px;font-size:13.5px;line-height:1.55;color:#8a8b9f}
+  label{display:block;font-family:'JetBrains Mono',monospace;font-size:10.5px;
+        text-transform:uppercase;letter-spacing:.08em;color:#8a8b9f;margin-bottom:8px}
+  input{width:100%;background:#16161f;border:1.5px solid #2b2b3a;border-radius:4px;
+        padding:11px 13px;color:#edeef4;font-size:14px;font-family:inherit;outline:none;
+        transition:border-color 120ms ease,box-shadow 120ms ease}
+  input:focus{border-color:#9146ff;box-shadow:3px 3px 0 #9146ff}
+  button{width:100%;margin-top:16px;background:#9146ff;color:#fff;
+         border:1.5px solid #a06bff;border-radius:4px;padding:12px;font-size:14px;
+         font-weight:600;font-family:inherit;cursor:pointer;box-shadow:3px 3px 0 #55199f;
+         transition:transform 120ms ease,box-shadow 120ms ease,background 120ms ease}
+  button:hover{background:#a06bff;transform:translate(-1px,-1px);box-shadow:4px 4px 0 #55199f}
+  button:active{transform:translate(3px,3px);box-shadow:0 0 0 #55199f}
+  :focus-visible{outline:2px solid #a06bff;outline-offset:2px}
+  .error{margin:0 0 18px;font-size:12.5px;line-height:1.5;color:#ffb3bf;
+         background:rgba(255,107,131,.12);border:1.5px solid rgba(255,107,131,.32);
+         border-radius:4px;padding:10px 12px}
+  .foot{margin:22px 0 0;padding-top:16px;border-top:1.5px solid rgba(255,255,255,.09);
+        font-size:11.5px;color:#7e7f95;text-align:center;line-height:1.6}
+  code{background:#16161f;border:1px solid #2b2b3a;border-radius:3px;
+       padding:1px 5px;font-family:'JetBrains Mono',monospace;font-size:11px;color:#c4a4ff}
+  @media (prefers-reduced-motion:reduce){*{transition-duration:.01ms !important}}
 `
 
-function htmlResponse(body: string, status: number, url: URL, mutate?: (h: Headers) => void) {
-  const headers = new Headers({
-    'Content-Type': 'text/html; charset=utf-8',
-    'Cache-Control': 'no-store, private',
-    'X-Robots-Tag': 'noindex, nofollow',
-    'Referrer-Policy': 'same-origin',
-    'X-Content-Type-Options': 'nosniff',
+const FONT_LINKS = `
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">`
+
+function htmlResponse(body: string, status: number) {
+  return new Response(body, {
+    status,
+    headers: new Headers({
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store, private',
+      'X-Robots-Tag': 'noindex, nofollow',
+      'Referrer-Policy': 'same-origin',
+      'X-Content-Type-Options': 'nosniff',
+    }),
   })
-  mutate?.(headers)
-  void url
-  return new Response(body, { status, headers })
 }
 
-function loginPage(error?: string): string {
+function shell(title: string, body: string): string {
   return `<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>Acceso — Chat Twitch Generator</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap">
+<meta name="color-scheme" content="dark">
+<title>${title}</title>${FONT_LINKS}
 <style>${PAGE_STYLES}</style>
 </head>
-<body>
-  <main class="card">
-    <div class="logo"></div>
-    <h1>Chat Twitch Generator</h1>
-    <p class="sub">Este editor es privado. Ingresá la clave para entrar.</p>
+<body><main class="card">${body}</main></body>
+</html>`
+}
+
+function loginPage(error?: string): string {
+  return shell(
+    'Acceso privado',
+    `
+    <span class="mark"><i></i>Chat Generator</span>
+    <h1>Estudio privado</h1>
+    <p class="sub">Ingresá la clave para entrar a tus presets.</p>
     ${error ? `<p class="error">${error}</p>` : ''}
     <form method="POST" action="/">
       <label for="password">Clave de acceso</label>
@@ -157,35 +128,24 @@ function loginPage(error?: string): string {
              autofocus required>
       <button type="submit">Entrar</button>
     </form>
-    <p class="foot">El link del overlay para OBS sigue funcionando sin clave.</p>
-  </main>
-</body>
-</html>`
+    <p class="foot">El link del overlay para OBS sigue funcionando sin clave.</p>`,
+  )
 }
 
 function misconfiguredPage(): string {
-  return `<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Falta configurar el acceso</title>
-<style>${PAGE_STYLES}</style>
-</head>
-<body>
-  <main class="card">
-    <div class="logo"></div>
-    <h1>Falta configurar el acceso</h1>
+  return shell(
+    'Falta configurar el acceso',
+    `
+    <span class="mark"><i></i>Chat Generator</span>
+    <h1>Falta la clave</h1>
     <p class="sub">
-      El sitio está protegido pero todavía no tiene clave, así que no deja entrar a nadie.
+      El sitio está protegido pero todavía no tiene contraseña, así que no deja entrar a nadie.
     </p>
     <p class="sub">
       Definí la variable de entorno <code>APP_PASSWORD</code> en
-      <b>Netlify → Site configuration → Environment variables</b> y volvé a desplegar.
-    </p>
-  </main>
-</body>
-</html>`
+      Netlify, en Site configuration y luego Environment variables, y volvé a desplegar.
+    </p>`,
+  )
 }
 
 /* ------------------------------ handler ------------------------------ */
@@ -195,7 +155,7 @@ export default async function gate(request: Request, context: Context): Promise<
   const password = Netlify.env.get('APP_PASSWORD')
 
   // Sin clave configurada fallamos cerrado: mejor un sitio inaccesible que uno abierto.
-  if (!password) return htmlResponse(misconfiguredPage(), 503, url)
+  if (!password) return htmlResponse(misconfiguredPage(), 503)
 
   const secret = Netlify.env.get('SESSION_SECRET') || password
 
@@ -218,7 +178,7 @@ export default async function gate(request: Request, context: Context): Promise<
     if (!safeEqual(candidate, password)) {
       // Pequeña demora: hace inviable probar claves a fuerza bruta.
       await new Promise((resolve) => setTimeout(resolve, FAILED_LOGIN_DELAY_MS))
-      return htmlResponse(loginPage('Clave incorrecta. Probá de nuevo.'), 401, url)
+      return htmlResponse(loginPage('Clave incorrecta. Probá de nuevo.'), 401)
     }
 
     const headers = new Headers({ Location: '/', 'Cache-Control': 'no-store, private' })
@@ -227,8 +187,7 @@ export default async function gate(request: Request, context: Context): Promise<
   }
 
   // Sesión existente.
-  const token = context.cookies.get(SESSION_COOKIE)
-  if (await isValidToken(secret, token)) {
+  if (await isValidToken(secret, context.cookies.get(SESSION_COOKIE))) {
     const response = await context.next()
     // El HTML del editor no puede quedar cacheado en la CDN para anónimos.
     response.headers.set('Cache-Control', 'no-store, private')
@@ -236,7 +195,7 @@ export default async function gate(request: Request, context: Context): Promise<
     return response
   }
 
-  return htmlResponse(loginPage(), 401, url)
+  return htmlResponse(loginPage(), 401)
 }
 
 export const config: Config = {

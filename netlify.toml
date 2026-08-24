@@ -1,15 +1,18 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  functions = "netlify/functions"
 
 [build.environment]
-  NODE_VERSION = "18"
+  # Node 20+: la API de presets y el gate comparten netlify/shared/session.ts,
+  # que usa Web Crypto global (en Node 18 todavia no lo esta).
+  NODE_VERSION = "20"
 
 # El login vive en netlify/edge-functions/gate.ts y declara sus propias rutas
-# ("/" y "/index.html"). /overlay.html queda fuera a propósito: OBS no puede
+# ("/" y "/index.html"). /overlay.html queda fuera a proposito: OBS no puede
 # atravesar un formulario de login.
 
-# Alias cómodo para la fuente de navegador.
+# Alias comodo para la fuente de navegador.
 [[redirects]]
   from = "/overlay"
   to = "/overlay.html"
