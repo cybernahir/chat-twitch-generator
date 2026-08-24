@@ -15,8 +15,7 @@ React + TypeScript + Vite, 100% estático (sin backend), listo para Netlify.
     contorno y sombra.
   - **Nombre de usuario**: color estilo Twitch / color fijo / igual que el texto,
     grosor, mayúsculas, en línea propia.
-  - **Avatares** (iniciales con el color del usuario) e **insignias** (streamer, mod,
-    VIP, sub, prime, turbo, staff).
+  - **Insignias**: streamer, mod, VIP, sub, prime, turbo, staff.
   - **Comportamiento**: dirección (de abajo hacia arriba o al revés), alineación,
     animación de entrada, ritmo de mensajes, cantidad en pantalla y borrado por tiempo.
 - **Fuente propia**: el streamer sube su `.ttf` (también `.otf`, `.woff`, `.woff2`)
@@ -61,6 +60,95 @@ su cuenta; lo que no puede es usar *tu* sitio. Para el caso de uso —que sólo 
 streamer entre a tu editor— alcanza. Si necesitaras cerrar también eso, hay que
 pasar a Netlify password protection a nivel sitio (plan pago).
 
+## Chat real de Twitch
+
+El overlay puede leer el chat en vivo de un canal, además de simularlo. En
+**Mensajes** se elige de dónde salen: `Twitch`, `Al azar` o `Los míos`.
+
+### Sin login, y eso es a propósito
+
+Twitch acepta conexiones **anónimas de solo lectura** a su IRC: un nick
+`justinfan<números>` sin contraseña alcanza para leer cualquier canal público.
+Por eso esta app no pide login de Twitch ni hace falta registrar una aplicación.
+
+La consecuencia importante es de seguridad: como no hay ningún token, **el link
+que se pega en OBS no lleva credenciales adentro**. Se puede compartir sin
+riesgo. Un overlay que usara OAuth no podría decir lo mismo.
+
+Lo que llega por esta vía, verificado contra el chat en vivo:
+
+- mensajes y nombres, con el **color real** que cada usuario eligió
+- **insignias**: streamer, mod, VIP, sub, prime, turbo, staff
+- **emotes de Twitch**, servidos desde su CDN pública (tampoco pide auth)
+- filtros: ocultar comandos (`!`) y ocultar usuarios (bots)
+
+Lo que **sí** necesitaría OAuth, y por eso no está:
+
+- el arte original de las insignias (Helix `/chat/badges/*`); en su lugar se
+  dibujan con iconos vectoriales
+- mandar mensajes al chat
+
+Las fotos de perfil de los usuarios quedaron **fuera de alcance a pedido**, no
+por una limitación técnica. Ni se muestran ni se piden, así que el overlay no
+hace un solo request por usuario.
+
+### Vincular la cuenta de Twitch
+
+El editor tiene un botón **Conectar cuenta de Twitch** (flujo Authorization
+Code). Sirve para dos cosas concretas:
+
+- saber el canal sin escribirlo a mano
+- traer el **arte real de las insignias del canal** (subs por antigüedad, bits),
+  que la API sólo entrega con token de usuario
+
+El `client_secret` y los tokens viven únicamente en la function y en Netlify
+Blobs. **Nunca llegan al navegador**: la API sólo devuelve el nombre de la
+cuenta vinculada. Se piden **cero scopes**, porque para identidad e insignias no
+hace falta ninguno.
+
+Las insignias se guardan **dentro del preset**, así el overlay las dibuja sin
+depender de que la API esté disponible. Si ella agrega una insignia nueva, se
+toca *Actualizar insignias reales* y se guarda el preset.
+
+#### Puesta en marcha
+
+1. Crear una aplicación en <https://dev.twitch.tv/console/apps>.
+2. En **OAuth Redirect URLs** poner exactamente:
+   `https://TU-SITIO.netlify.app/api/twitch/callback`
+3. Cargar en Netlify las variables `TWITCH_CLIENT_ID` y `TWITCH_CLIENT_SECRET`.
+
+Sin esas variables el resto de la app funciona igual: el botón se reemplaza por
+un aviso y el canal se escribe a mano.
+
+### Por qué el overlay no usa EventSub
+
+Twitch recomienda EventSub por sobre IRC, pero acá no se puede, y la razón es
+arquitectónica:
+
+- `channel.chat.message` exige **token de usuario** (`user:read:chat`, más
+  `user:bot` por WebSocket).
+- El overlay que se pega en OBS es **público**: no puede llevar ese token.
+- Netlify sirve funciones por request y no sostiene conexiones persistentes, así
+  que tampoco puede hacer de proxy autenticado.
+
+Por eso la lectura del chat sigue por IRC anónimo, que no necesita credenciales.
+Mover esto a EventSub implicaría cambiar de hosting a uno con proceso
+persistente. Lo mismo aplica a las alertas de follows, subs y raids.
+
+### Sobre el parseo de emotes
+
+El tag `emotes` marca dónde va cada emote con índices que cuentan **puntos de
+código**, no unidades UTF-16. Si el mensaje trae un emoji fuera del plano básico
+y se corta con `slice` normal, todos los emotes salen corridos de lugar. Por eso
+`buildSegments` recorre con `Array.from`.
+
+### Limitación conocida
+
+`justinfan` nunca estuvo documentado oficialmente y Twitch viene empujando la
+migración de IRC a EventSub. Hoy funciona, pero si algún día lo cierran hay que
+pasar a EventSub, que sí pide OAuth y por lo tanto un backend que guarde el
+token. La pieza a reescribir sería sólo `src/lib/twitchChat.ts`.
+
 ## Presets
 
 Después del login, la primera pantalla es la biblioteca de presets. Cada preset
@@ -94,21 +182,41 @@ seguridad está escrita una sola vez.
 
 ## Cómo funciona el link de OBS
 
-No hay base de datos: toda la configuración se serializa a JSON, se codifica en
-base64url y viaja en el **hash** de la URL:
+Hay dos formatos. En los dos, lo que identifica al overlay va en el **hash**, que
+nunca viaja al servidor.
+
+### Link corto, el recomendado
+
+```
+https://tu-sitio.netlify.app/overlay.html#p=p1a2b3c4d
+```
+
+Apunta al preset guardado, y el overlay le pide la configuración a
+`/api/preset/:id` al cargar. Es el que conviene pegar en OBS:
+
+- **no cambia al editar**, así que se pega una sola vez
+- la fuente propia **no viaja en la URL**, se sirve desde el preset
+
+Para que OBS vea los cambios: guardar el preset y, en OBS, botón derecho sobre la
+fuente y **Actualizar**.
+
+Requiere que los presets estén guardados en el servidor. Con presets locales
+(sin backend) el editor usa el formato largo automáticamente.
+
+### Link largo, con todo adentro
 
 ```
 https://tu-sitio.netlify.app/overlay.html#c=eyJ2IjoxLCJ3aWR0aCI6NDgw…
 ```
 
-Como va en el hash, no llega al servidor y no tiene el límite de longitud de un
-query string normal. Por eso el mismo mecanismo sirve para la fuente propia: el
-`.ttf` se embebe como data URL dentro de la config.
+Lleva la configuración entera codificada en base64url, incluida la fuente propia
+como data URL. Funciona sin backend y mantiene andando los links viejos, pero
+tiene dos problemas que fueron justamente los que motivaron el formato corto:
 
-> **Sobre el peso de la fuente.** Un `.ttf` de 300 KB hace que el link quede muy
-> largo (funciona, pero es incómodo). Si te pasa, convertí la fuente a `.woff2`
-> (suele bajar a menos de 100 KB) o pegá la URL de la fuente ya hosteada en el
-> campo correspondiente — ahí el link queda cortito.
+- **cambia cada vez que tocás algo**, así que hay que volver a copiarlo en OBS.
+  Si no, el editor muestra una cosa y OBS otra.
+- con una fuente propia queda larguísimo, y pegarlo en OBS se vuelve poco
+  práctico.
 
 En el editor, la fuente subida además se guarda en **IndexedDB** para que siga
 disponible la próxima vez que abras la página.

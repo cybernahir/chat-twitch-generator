@@ -45,7 +45,22 @@ export function decodeConfig(raw: string | null): ChatConfig {
  * de un query string normal.
  */
 export function buildOverlayUrl(config: ChatConfig, origin = window.location.origin): string {
-  // Soporta que el sitio esté servido desde un subdirectorio.
+  return `${overlayBase(origin)}#c=${encodeConfig(config)}`
+}
+
+/** Soporta que el sitio esté servido desde un subdirectorio. */
+function overlayBase(origin: string): string {
   const dir = window.location.pathname.replace(/\/[^/]*$/, '')
-  return `${origin}${dir}/overlay.html#c=${encodeConfig(config)}`
+  return `${origin}${dir}/overlay.html`
+}
+
+/**
+ * Link corto y estable, atado al preset guardado.
+ *
+ * Es el que conviene pegar en OBS: no cambia al editar, así que no hay que
+ * volver a copiarlo cada vez, y la fuente propia no viaja en la URL. El overlay
+ * pide la configuración a `/api/preset/:id` al cargar.
+ */
+export function buildPresetOverlayUrl(presetId: string, origin = window.location.origin): string {
+  return `${overlayBase(origin)}#p=${encodeURIComponent(presetId)}`
 }

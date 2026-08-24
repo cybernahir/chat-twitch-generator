@@ -12,7 +12,9 @@ import {
   Pause,
   Play,
   TextAa,
+  TwitchLogo,
   UploadSimple,
+  WarningCircle,
 } from '@phosphor-icons/react'
 import type { Icon } from '@phosphor-icons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -30,11 +32,18 @@ import {
   Toggle,
 } from '../components/ui/Controls'
 import { DEFAULT_CONFIG } from '../defaults'
-import { CUSTOM_FONT_FAMILY } from '../fonts'
-import { buildOverlayUrl } from '../lib/encode'
+import { buildOverlayUrl, buildPresetOverlayUrl } from '../lib/encode'
 import { injectFontFace, loadFont } from '../lib/fontStore'
 import { newPresetId, savePreset } from '../lib/presetStore'
 import { useChatFeed } from '../lib/useChatFeed'
+import {
+  fetchBadgeImages,
+  fetchTwitchStatus,
+  startTwitchLogin,
+  unlinkTwitch,
+} from '../lib/twitchAccount'
+import type { TwitchAccountState } from '../lib/twitchAccount'
+import type { TwitchStatus } from '../lib/twitchChat'
 import { navigate } from '../lib/useHashRoute'
 import type { AnimationType, ChatConfig, Preset, PresetStorageMode } from '../types'
 
@@ -49,6 +58,14 @@ const GROUPS: { id: GroupId; label: string; Glyph: Icon; hint: string }[] = [
   { id: 'lienzo', label: 'Lienzo', Glyph: Crop, hint: 'El tamaño que va en OBS' },
 ]
 
+const TWITCH_STATUS_LABEL: Record<TwitchStatus, string> = {
+  idle: 'Sin conectar',
+  connecting: 'Conectando con Twitch',
+  connected: 'Leyendo el chat en vivo',
+  reconnecting: 'Se cortó, reconectando',
+  error: 'No se pudo conectar',
+}
+
 function snapshotOf(name: string, config: ChatConfig): string {
   return JSON.stringify({ name, config })
 }
@@ -57,11 +74,12 @@ interface Props {
   /** `null` cuando se está creando uno nuevo y todavía no se guardó. */
   presetId: string | null
   presets: Preset[]
+  mode: PresetStorageMode
   loading: boolean
   onPresetsChange: (presets: Preset[], mode: PresetStorageMode) => void
 }
 
-export default function EditorPage({ presetId, presets, loading, onPresetsChange }: Props) {
+export default function EditorPage({ presetId, presets, mode, loading, onPresetsChange }: Props) {
   const [config, setConfig] = useState<ChatConfig>(DEFAULT_CONFIG)
   const [name, setName] = useState('Preset sin nombre')
   const [snapshot, setSnapshot] = useState(() => snapshotOf('Preset sin nombre', DEFAULT_CONFIG))
@@ -71,6 +89,9 @@ export default function EditorPage({ presetId, presets, loading, onPresetsChange
   const [group, setGroup] = useState<GroupId>('mensajes')
   const [copied, setCopied] = useState(false)
   const [running, setRunning] = useState(true)
+  const [twitchAccount, setTwitchAccount] = useState<TwitchAccountState | null>(null)
+  const [badgeBusy, setBadgeBusy] = useState(false)
+  const [badgeNote, setBadgeNote] = useState<string | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const [stageBox, setStageBox] = useState({ w: 0, h: 0 })
 
@@ -96,6 +117,11 @@ export default function EditorPage({ presetId, presets, loading, onPresetsChange
     setSnapshot(snapshotOf(found.name, merged))
     setHydrated(true)
   }, [hydrated, loading, presets, presetId])
+
+  // Estado de la vinculación con Twitch. Sin backend queda en no disponible.
+  useEffect(() => {
+    void fetchTwitchStatus().then(setTwitchAccount)
+  }, [])
 
   // Recuperamos la fuente subida en una sesión anterior.
   useEffect(() => {
@@ -142,6 +168,28 @@ export default function EditorPage({ presetId, presets, loading, onPresetsChange
     navigate('/')
   }
 
+  /** Trae el arte real de las insignias y lo guarda dentro del preset. */
+  const refreshBadges = async () => {
+    setBadgeBusy(true)
+    setBadgeNote(null)
+
+    const result = await fetchBadgeImages(twitchAccount?.account?.userId)
+    if ('error' in result) {
+      setBadgeNote(result.error)
+    } else {
+      patch({ badgeImages: result.images })
+      setBadgeNote(`Listo: ${Object.keys(result.images).length} insignias guardadas en el preset.`)
+    }
+
+    setBadgeBusy(false)
+  }
+
+  const unlink = async () => {
+    if (!confirm('¿Desvincular la cuenta de Twitch?')) return
+    await unlinkTwitch()
+    setTwitchAccount(await fetchTwitchStatus())
+  }
+
   // Escalamos la preview para que el lienzo entre siempre en pantalla.
   useEffect(() => {
     const el = stageRef.current
@@ -158,8 +206,18 @@ export default function EditorPage({ presetId, presets, loading, onPresetsChange
     return Math.min(1, stageBox.w / config.width, stageBox.h / config.height)
   }, [stageBox, config.width, config.height])
 
-  const messages = useChatFeed(config, running)
-  const overlayUrl = useMemo(() => buildOverlayUrl(config), [config])
+  const { messages, twitchStatus, twitchDetail } = useChatFeed(config, running)
+
+  /**
+   * El link corto necesita que el preset esté guardado en el servidor, porque
+   * el overlay lo va a buscar por id. Sin backend seguimos con la config
+   * embebida en la URL.
+   */
+  const shortLink = presetId !== null && mode === 'cloud'
+  const overlayUrl = useMemo(
+    () => (shortLink ? buildPresetOverlayUrl(presetId) : buildOverlayUrl(config)),
+    [shortLink, presetId, config],
+  )
 
   const copyUrl = async () => {
     try {
@@ -265,27 +323,32 @@ export default function EditorPage({ presetId, presets, loading, onPresetsChange
                   value={config.source}
                   onChange={(v) => patch({ source: v })}
                   options={[
-                    { value: 'random', label: 'Aleatorios' },
+                    { value: 'twitch', label: 'Twitch' },
+                    { value: 'random', label: 'Al azar' },
                     { value: 'script', label: 'Los míos' },
                   ]}
                 />
-                <Slider
-                  label="Uno cada"
-                  min={200}
-                  max={8000}
-                  step={100}
-                  suffix=" ms"
-                  value={config.messageInterval}
-                  onChange={(v) => patch({ messageInterval: v })}
-                />
-                <Slider
-                  label="Variación del ritmo"
-                  min={0}
-                  max={100}
-                  suffix=" %"
-                  value={config.intervalJitter}
-                  onChange={(v) => patch({ intervalJitter: v })}
-                />
+                {config.source !== 'twitch' && (
+                  <>
+                    <Slider
+                      label="Uno cada"
+                      min={200}
+                      max={8000}
+                      step={100}
+                      suffix=" ms"
+                      value={config.messageInterval}
+                      onChange={(v) => patch({ messageInterval: v })}
+                    />
+                    <Slider
+                      label="Variación del ritmo"
+                      min={0}
+                      max={100}
+                      suffix=" %"
+                      value={config.intervalJitter}
+                      onChange={(v) => patch({ intervalJitter: v })}
+                    />
+                  </>
+                )}
                 <Slider
                   label="En pantalla"
                   min={1}
@@ -302,6 +365,136 @@ export default function EditorPage({ presetId, presets, loading, onPresetsChange
                   onChange={(v) => patch({ fadeOutAfter: v })}
                 />
               </Section>
+
+              {config.source === 'twitch' && (
+                <Section title="Canal de Twitch">
+                  <label className="row row-wide">
+                    <span className="row-label">Nombre del canal</span>
+                    <input
+                      type="text"
+                      spellCheck={false}
+                      placeholder="elcanaldetunovia"
+                      value={config.twitchChannel}
+                      onChange={(e) =>
+                        patch({ twitchChannel: e.target.value.trim().replace(/^#/, '') })
+                      }
+                    />
+                  </label>
+
+                  {twitchAccount && !twitchAccount.available && (
+                    <p className="hint">
+                      Vincular la cuenta necesita el backend, así que sólo anda en el sitio
+                      publicado. Mientras tanto podés escribir el canal a mano: el chat se lee igual.
+                    </p>
+                  )}
+
+                  {twitchAccount?.available && !twitchAccount.configured && (
+                    <p className="uploader-warn">
+                      <WarningCircle size={15} weight="fill" />
+                      <span>
+                        Para vincular la cuenta faltan <b>TWITCH_CLIENT_ID</b> y{' '}
+                        <b>TWITCH_CLIENT_SECRET</b> en las variables de entorno de Netlify.
+                      </span>
+                    </p>
+                  )}
+
+                  {twitchAccount?.configured && !twitchAccount.account && (
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-block"
+                      onClick={startTwitchLogin}
+                    >
+                      <TwitchLogo size={16} weight="fill" />
+                      Conectar cuenta de Twitch
+                    </button>
+                  )}
+
+                  {twitchAccount?.account && (
+                    <div className="tw-account">
+                      <div className="tw-account-head">
+                        <TwitchLogo size={18} weight="fill" />
+                        <div>
+                          <b>{twitchAccount.account.displayName}</b>
+                          <span className="readout faint">cuenta vinculada</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => void unlink()}
+                        >
+                          Desvincular
+                        </button>
+                      </div>
+
+                      {config.twitchChannel.toLowerCase() !== twitchAccount.account.login && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-block"
+                          onClick={() =>
+                            patch({ twitchChannel: twitchAccount.account?.login ?? '' })
+                          }
+                        >
+                          Usar el canal {twitchAccount.account.login}
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-block"
+                        disabled={badgeBusy}
+                        onClick={() => void refreshBadges()}
+                      >
+                        {badgeBusy
+                          ? 'Trayendo insignias…'
+                          : config.badgeImages
+                            ? 'Actualizar insignias reales'
+                            : 'Traer insignias reales del canal'}
+                      </button>
+
+                      {badgeNote && <p className="hint">{badgeNote}</p>}
+                      {config.badgeImages && !badgeNote && (
+                        <p className="hint">
+                          Este preset ya guarda {Object.keys(config.badgeImages).length} insignias
+                          reales.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className={`tw-status is-${twitchStatus}`}>
+                    <span className="tw-dot" />
+                    <span className="tw-status-text">
+                      {TWITCH_STATUS_LABEL[twitchStatus]}
+                      {twitchDetail && <small>{twitchDetail}</small>}
+                    </span>
+                  </div>
+
+                  <p className="hint">
+                    Se conecta de solo lectura y sin contraseña, así que el link de OBS no lleva
+                    ningún dato de la cuenta adentro. Llegan los nombres con su color real, las
+                    insignias y los emotes de Twitch.
+                  </p>
+
+                  <Toggle
+                    label="Ocultar comandos (!)"
+                    value={config.hideCommands}
+                    onChange={(v) => patch({ hideCommands: v })}
+                  />
+
+                  <label className="row row-wide">
+                    <span className="row-label">Usuarios a ocultar</span>
+                    <textarea
+                      rows={2}
+                      spellCheck={false}
+                      value={config.blockedUsers}
+                      onChange={(e) => patch({ blockedUsers: e.target.value })}
+                    />
+                  </label>
+                  <small className="hint">
+                    Separados por coma. Sirve para que los bots no ocupen lugar en pantalla.
+                  </small>
+                </Section>
+              )}
 
               {config.source === 'script' && (
                 <Section title="Tu guion" hint={`${config.script.length} mensajes`}>
@@ -543,22 +736,7 @@ export default function EditorPage({ presetId, presets, loading, onPresetsChange
                 />
               </Section>
 
-              <Section title="Avatar e insignias">
-                <Toggle
-                  label="Mostrar avatar"
-                  value={config.showAvatars}
-                  onChange={(v) => patch({ showAvatars: v })}
-                />
-                {config.showAvatars && (
-                  <Slider
-                    label="Tamaño del avatar"
-                    min={12}
-                    max={64}
-                    suffix=" px"
-                    value={config.avatarSize}
-                    onChange={(v) => patch({ avatarSize: v })}
-                  />
-                )}
+              <Section title="Insignias">
                 <Toggle
                   label="Mostrar insignias"
                   value={config.showBadges}
@@ -795,14 +973,33 @@ export default function EditorPage({ presetId, presets, loading, onPresetsChange
               .
             </li>
             <li>
-              Tildá <b>Apagar la fuente cuando no esté visible</b>.
+              {shortLink ? (
+                <>
+                  Después de guardar, <b>botón derecho sobre la fuente → Actualizar</b>.
+                </>
+              ) : (
+                <>
+                  Tildá <b>Apagar la fuente cuando no esté visible</b>.
+                </>
+              )}
             </li>
           </ol>
 
-          {config.fontFamily === CUSTOM_FONT_FAMILY && config.customFontData && (
+          {shortLink ? (
+            dirty && (
+              <p className="export-note is-warn">
+                <WarningCircle size={15} weight="fill" />
+                <span>
+                  Tenés cambios sin guardar. OBS sigue mostrando la última versión guardada:
+                  tocá <b>Guardar preset</b> y actualizá la fuente de navegador.
+                </span>
+              </p>
+            )
+          ) : (
             <p className="export-note">
-              Tu fuente viaja embebida en el link, por eso es tan largo. Copialo entero y OBS la va a
-              mostrar igual que acá.
+              {presetId === null
+                ? 'Este link lleva la configuración entera adentro, así que cambia cada vez que tocás algo y hay que volver a copiarlo en OBS. Guardá el preset para obtener un link corto que no cambie.'
+                : 'Los presets se están guardando sólo en este navegador, así que el link tiene que llevar la configuración adentro. Publicando el sitio en Netlify pasa a ser un link corto y estable.'}
             </p>
           )}
         </footer>

@@ -55,19 +55,6 @@
   margin-right: 0.35em;
 }
 
-.ov-avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  color: #fff;
-  font-weight: 800;
-  letter-spacing: 0;
-  text-shadow: none;
-  flex: 0 0 auto;
-  line-height: 1;
-}
-
 .ov-badge {
   display: inline-flex;
   align-items: center;
@@ -84,6 +71,15 @@
 
 .ov-text {
   vertical-align: middle;
+}
+
+/* Emotes reales de Twitch. Van a la altura de la linea para que el mensaje
+   no se estire cuando alguien manda solo emotes. */
+.ov-emote {
+  height: 1.5em;
+  width: auto;
+  vertical-align: -0.35em;
+  margin: 0 0.05em;
 }
 
 /* --- Animaciones de entrada --- */
@@ -135,4 +131,25 @@ body.overlay-mode {
   margin: 0;
   background: transparent !important;
   overflow: hidden;
+}
+
+/* Arte real de las insignias del canal, cuando la cuenta esta vinculada. */
+.ov-badge-img {
+  display: inline-block;
+  flex: 0 0 auto;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+/* Solo se ve al abrir el link en un navegador: en OBS el fondo es transparente. */
+.overlay-error {
+  margin: 0;
+  padding: 18px 20px;
+  max-width: 46ch;
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #edeef4;
+  background: rgba(17, 17, 20, 0.86);
+  border-radius: 8px;
 }

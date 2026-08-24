@@ -2,7 +2,7 @@ export type ChatDirection = 'bottom' | 'top'
 export type Align = 'left' | 'center' | 'right'
 export type AnimationType = 'none' | 'fade' | 'slide-left' | 'slide-right' | 'slide-up' | 'pop'
 export type UsernameColorMode = 'twitch' | 'fixed' | 'inherit'
-export type SourceMode = 'random' | 'script'
+export type SourceMode = 'random' | 'script' | 'twitch'
 export type LayoutMode = 'bubble' | 'flat'
 
 export type BadgeId = 'broadcaster' | 'mod' | 'vip' | 'sub' | 'prime' | 'turbo' | 'staff'
@@ -15,6 +15,11 @@ export interface ScriptLine {
   badges?: BadgeId[]
 }
 
+/** Un mensaje se parte en texto y emotes para poder dibujar las imagenes. */
+export type MessageSegment =
+  | { type: 'text'; value: string }
+  | { type: 'emote'; id: string; name: string }
+
 export interface ChatMessage {
   id: string
   user: string
@@ -22,6 +27,10 @@ export interface ChatMessage {
   color: string
   badges: BadgeId[]
   createdAt: number
+  /** Solo en mensajes reales de Twitch que traen emotes. */
+  segments?: MessageSegment[]
+  /** Insignias crudas de Twitch (`subscriber/9`), para buscar su imagen real. */
+  rawBadges?: string[]
 }
 
 export interface ChatConfig {
@@ -71,11 +80,11 @@ export interface ChatConfig {
   boxShadow: number
   boxShadowColor: string
 
-  /* Avatares e insignias */
-  showAvatars: boolean
-  avatarSize: number
+  /* Insignias */
   showBadges: boolean
   badgeSize: number
+  /** `setId/version` -> URL de la imagen. Se llena al vincular la cuenta. */
+  badgeImages?: Record<string, string>
 
   /* Perspectiva / rotación */
   perspective: number
@@ -96,6 +105,11 @@ export interface ChatConfig {
   source: SourceMode
   script: ScriptLine[]
   loopScript: boolean
+
+  /* Chat real de Twitch (source === 'twitch') */
+  twitchChannel: string
+  hideCommands: boolean
+  blockedUsers: string
 
   /* Fuente propia */
   customFontName?: string

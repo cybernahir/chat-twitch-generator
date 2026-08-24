@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { RANDOM_MESSAGES, RANDOM_USERS, TWITCH_COLORS } from '../defaults'
+import { connectTwitchChat } from './twitchChat'
+import type { TwitchStatus } from './twitchChat'
 import type { BadgeId, ChatConfig, ChatMessage } from '../types'
 
 const BADGE_POOL: BadgeId[][] = [
@@ -37,28 +39,78 @@ function randomMessage(): ChatMessage {
   }
 }
 
+function parseBlocked(raw: string): string[] {
+  return raw
+    .split(/[,\n]/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+}
+
+export interface ChatFeed {
+  messages: ChatMessage[]
+  twitchStatus: TwitchStatus
+  twitchDetail?: string
+}
+
 /**
- * Motor del chat simulado. Devuelve la lista visible de mensajes, que se recorta
- * a `maxMessages` y opcionalmente se descarta tras `fadeOutAfter` segundos.
+ * Motor del chat. Sirve las tres fuentes: mensajes al azar, un guion propio o
+ * el chat real de Twitch. La lista visible se recorta a `maxMessages` y
+ * opcionalmente se descarta lo que pase de `fadeOutAfter` segundos.
  */
-export function useChatFeed(config: ChatConfig, running = true) {
+export function useChatFeed(config: ChatConfig, running = true): ChatFeed {
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [twitchStatus, setTwitchStatus] = useState<TwitchStatus>('idle')
+  const [twitchDetail, setTwitchDetail] = useState<string | undefined>()
   const scriptIndex = useRef(0)
   const timer = useRef<number | null>(null)
 
   const {
     source, script, loopScript, messageInterval, intervalJitter,
-    maxMessages, fadeOutAfter,
+    maxMessages, fadeOutAfter, twitchChannel, hideCommands, blockedUsers,
   } = config
+
+  // Los filtros van por ref para que cambiarlos no reabra la conexion a Twitch.
+  const filters = useRef({ maxMessages, hideCommands, blockedUsers })
+  filters.current = { maxMessages, hideCommands, blockedUsers }
 
   // Al cambiar la fuente de contenido arrancamos de cero.
   useEffect(() => {
     scriptIndex.current = 0
     setMessages([])
-  }, [source, script, loopScript])
+  }, [source, script, loopScript, twitchChannel])
+
+  /* ---------------------- chat real de Twitch ---------------------- */
 
   useEffect(() => {
-    if (!running) return
+    if (source !== 'twitch' || !running) return
+
+    if (!twitchChannel.trim()) {
+      setTwitchStatus('idle')
+      return
+    }
+
+    const dispose = connectTwitchChat(twitchChannel, {
+      onStatus: (status, detail) => {
+        setTwitchStatus(status)
+        setTwitchDetail(detail)
+      },
+      onMessage: (message) => {
+        const { maxMessages: cap, hideCommands: hide, blockedUsers: blocked } = filters.current
+
+        if (hide && message.text.trim().startsWith('!')) return
+        if (parseBlocked(blocked).includes(message.user.toLowerCase())) return
+
+        setMessages((prev) => [...prev, message].slice(-Math.max(1, cap)))
+      },
+    })
+
+    return dispose
+  }, [source, running, twitchChannel])
+
+  /* ---------------------- simulacion ---------------------- */
+
+  useEffect(() => {
+    if (!running || source === 'twitch') return
 
     let cancelled = false
 
@@ -108,6 +160,13 @@ export function useChatFeed(config: ChatConfig, running = true) {
     }
   }, [running, source, script, loopScript, messageInterval, intervalJitter, maxMessages])
 
+  // Recorte por cantidad cuando se baja el tope estando ya lleno.
+  useEffect(() => {
+    setMessages((prev) =>
+      prev.length > maxMessages ? prev.slice(-Math.max(1, maxMessages)) : prev,
+    )
+  }, [maxMessages])
+
   // Expiración por tiempo.
   useEffect(() => {
     if (!fadeOutAfter) return
@@ -121,5 +180,5 @@ export function useChatFeed(config: ChatConfig, running = true) {
     return () => window.clearInterval(id)
   }, [fadeOutAfter])
 
-  return messages
+  return { messages, twitchStatus, twitchDetail }
 }

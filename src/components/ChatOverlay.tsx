@@ -1,8 +1,9 @@
 import { useEffect, useMemo } from 'react'
 import { CUSTOM_FONT_FAMILY, ensureGoogleFont, fontStack } from '../fonts'
 import { injectFontFace } from '../lib/fontStore'
+import { emoteUrl } from '../lib/twitchChat'
 import type { ChatConfig, ChatMessage } from '../types'
-import { Badge } from './Badge'
+import { BadgeRow } from './Badge'
 import '../styles/overlay.css'
 
 /** #RRGGBB + porcentaje -> rgba() */
@@ -14,10 +15,6 @@ export function rgba(hex: string, opacityPct: number): string {
   const g = (n >> 8) & 255
   const b = n & 255
   return `rgba(${r}, ${g}, ${b}, ${Math.min(100, Math.max(0, opacityPct)) / 100})`
-}
-
-function initials(name: string): string {
-  return name.replace(/[^a-zA-Z0-9]/g, '').slice(0, 2).toUpperCase() || '??'
 }
 
 interface Props {
@@ -103,21 +100,14 @@ export default function ChatOverlay({ config, messages }: Props) {
             <div key={m.id} className="ov-row" style={rowStyle}>
               <div className={`ov-inner ${c.nameOnOwnLine ? 'is-stacked' : ''}`}>
                 <span className="ov-head">
-                  {c.showAvatars && (
-                    <span
-                      className="ov-avatar"
-                      style={{
-                        width: c.avatarSize,
-                        height: c.avatarSize,
-                        background: m.color,
-                        fontSize: c.avatarSize * 0.42,
-                      }}
-                    >
-                      {initials(m.user)}
-                    </span>
+                  {c.showBadges && (
+                    <BadgeRow
+                      badges={m.badges}
+                      rawBadges={m.rawBadges}
+                      images={c.badgeImages}
+                      size={c.badgeSize}
+                    />
                   )}
-                  {c.showBadges &&
-                    m.badges.map((b) => <Badge key={b} id={b} size={c.badgeSize} />)}
                   <span
                     className="ov-user"
                     style={{
@@ -136,7 +126,21 @@ export default function ChatOverlay({ config, messages }: Props) {
                   </span>
                 </span>
                 <span className="ov-text" style={{ fontWeight: c.fontWeight }}>
-                  {m.text}
+                  {m.segments
+                    ? m.segments.map((seg, i) =>
+                        seg.type === 'emote' ? (
+                          <img
+                            key={i}
+                            className="ov-emote"
+                            src={emoteUrl(seg.id)}
+                            alt={seg.name}
+                            title={seg.name}
+                          />
+                        ) : (
+                          <span key={i}>{seg.value}</span>
+                        ),
+                      )
+                    : m.text}
                 </span>
               </div>
             </div>

@@ -120,8 +120,6 @@ export const DEFAULT_CONFIG: ChatConfig = {
   boxShadow: 0,
   boxShadowColor: '#000000',
 
-  showAvatars: true,
-  avatarSize: 32,
   showBadges: true,
   badgeSize: 18,
 
@@ -139,6 +137,9 @@ export const DEFAULT_CONFIG: ChatConfig = {
   intervalJitter: 60,
 
   source: 'random',
+  twitchChannel: '',
+  hideCommands: true,
+  blockedUsers: 'nightbot, streamelements, streamlabs, moobot, fossabot',
   script: DEFAULT_SCRIPT,
   loopScript: true,
 }

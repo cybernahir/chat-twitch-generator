@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import EditorPage from './pages/EditorPage'
 import LibraryPage from './pages/LibraryPage'
 import { listPresets } from './lib/presetStore'
+import { consumeTwitchReturn } from './lib/twitchAccount'
 import { useHashRoute } from './lib/useHashRoute'
 import type { Preset, PresetStorageMode } from './types'
 
@@ -22,12 +23,18 @@ export default function App() {
     void refresh()
   }, [refresh])
 
+  // Si venimos de vincular la cuenta de Twitch, volvemos a la pantalla previa.
+  useEffect(() => {
+    consumeTwitchReturn()
+  }, [])
+
   if (route.view === 'editor') {
     return (
       <EditorPage
         key={route.presetId ?? 'new'}
         presetId={route.presetId}
         presets={presets}
+        mode={mode}
         loading={loading}
         onPresetsChange={(next, nextMode) => {
           setPresets(next)
