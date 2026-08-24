@@ -874,6 +874,17 @@ export default function EditorPage({ presetId, presets, mode, loading, onPresets
                 value={config.height}
                 onChange={(v) => patch({ height: v })}
               />
+              <Toggle
+                label="Aplicar cambios en vivo en OBS"
+                value={config.liveSync}
+                onChange={(v) => patch({ liveSync: v })}
+              />
+              <small className="hint">
+                Con esto prendido, al guardar el preset la fuente de navegador se actualiza sola en
+                un par de segundos. Necesita el link corto. Si lo apagás, OBS se queda con lo que
+                cargó al abrir hasta que la actualices a mano.
+              </small>
+
               <div className="preset-grid">
                 {[
                   { label: 'Vertical', w: 480, h: 720 },
@@ -973,7 +984,11 @@ export default function EditorPage({ presetId, presets, mode, loading, onPresets
               .
             </li>
             <li>
-              {shortLink ? (
+              {shortLink && config.liveSync ? (
+                <>
+                  Listo. Cada vez que <b>guardes</b>, OBS se actualiza solo.
+                </>
+              ) : shortLink ? (
                 <>
                   Después de guardar, <b>botón derecho sobre la fuente → Actualizar</b>.
                 </>
@@ -991,7 +1006,10 @@ export default function EditorPage({ presetId, presets, mode, loading, onPresets
                 <WarningCircle size={15} weight="fill" />
                 <span>
                   Tenés cambios sin guardar. OBS sigue mostrando la última versión guardada:
-                  tocá <b>Guardar preset</b> y actualizá la fuente de navegador.
+                  tocá <b>Guardar preset</b>
+                  {config.liveSync
+                    ? ' y en un par de segundos se actualiza solo.'
+                    : ' y después actualizá la fuente de navegador.'}
                 </span>
               </p>
             )

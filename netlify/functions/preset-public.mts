@@ -24,17 +24,17 @@ interface StoredPreset {
   config: unknown
 }
 
-function json(body: unknown, status = 200, maxAge = 0): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      // Poca cache: si la streamer recarga la fuente en OBS tiene que ver
-      // los cambios que acaba de guardar.
-      'Cache-Control': maxAge ? `public, max-age=${maxAge}` : 'no-store',
-      'Access-Control-Allow-Origin': '*',
-    },
-  })
+function json(body: unknown, status = 200, etag?: string): Response {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json; charset=utf-8',
+    // Sin cache de CDN: lo que acaba de guardar tiene que verse ya. La
+    // revalidacion barata la resuelve el ETag.
+    'Cache-Control': 'no-cache',
+    'Access-Control-Allow-Origin': '*',
+  }
+  if (etag) headers.ETag = etag
+
+  return new Response(JSON.stringify(body), { status, headers })
 }
 
 export default async function handler(req: Request): Promise<Response> {
@@ -47,7 +47,22 @@ export default async function handler(req: Request): Promise<Response> {
 
     if (!preset) return json({ error: 'Ese preset no existe.' }, 404)
 
-    return json({ name: preset.name, updatedAt: preset.updatedAt, config: preset.config }, 200, 5)
+    // El overlay consulta cada pocos segundos para aplicar los cambios en vivo.
+    // Con ETag, mientras no se guarde nada nuevo la respuesta es un 304 vacio
+    // en vez de mandar la configuracion entera (que puede traer una fuente).
+    const etag = `"${preset.updatedAt}"`
+    if (req.headers.get('if-none-match') === etag) {
+      return new Response(null, {
+        status: 304,
+        headers: { ETag: etag, 'Cache-Control': 'no-cache', 'Access-Control-Allow-Origin': '*' },
+      })
+    }
+
+    return json(
+      { name: preset.name, updatedAt: preset.updatedAt, config: preset.config },
+      200,
+      etag,
+    )
   } catch (error) {
     console.error('[preset-public]', error)
     return json({ error: 'No se pudo leer el preset.' }, 500)

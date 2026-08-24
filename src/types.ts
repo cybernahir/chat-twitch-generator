@@ -106,6 +106,9 @@ export interface ChatConfig {
   script: ScriptLine[]
   loopScript: boolean
 
+  /** Aplicar en vivo los cambios guardados, sin recargar la fuente en OBS. */
+  liveSync: boolean
+
   /* Chat real de Twitch (source === 'twitch') */
   twitchChannel: string
   hideCommands: boolean

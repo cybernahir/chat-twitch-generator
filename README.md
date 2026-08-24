@@ -197,8 +197,35 @@ Apunta al preset guardado, y el overlay le pide la configuración a
 - **no cambia al editar**, así que se pega una sola vez
 - la fuente propia **no viaja en la URL**, se sirve desde el preset
 
-Para que OBS vea los cambios: guardar el preset y, en OBS, botón derecho sobre la
-fuente y **Actualizar**.
+Con **Aplicar cambios en vivo** prendido (viene así), al guardar el preset la
+fuente de navegador se actualiza sola en un par de segundos. Sin eso hay que ir a
+OBS, botón derecho sobre la fuente y **Actualizar**.
+
+### Cómo hace para verse en vivo
+
+Netlify no sostiene conexiones persistentes, así que **no hay push**: el overlay
+pregunta. Para que se sienta instantáneo sin gastar invocaciones durante toda la
+transmisión, el ritmo se adapta:
+
+| Situación | Consulta cada |
+| --- | --- |
+| Acaba de llegar un cambio (últimos 2 min) | 2 s |
+| Nada nuevo hace rato | 15 s |
+| Con la sincronización apagada | no consulta |
+
+La lógica es que un cambio suele venir acompañado de otros: si guardó una vez,
+está retocando. Cuando se queda quieta, afloja sola.
+
+Las consultas sin novedad usan `ETag` / `If-None-Match` y responden **304 sin
+cuerpo**, así que no se retransmite la configuración (que puede traer una fuente
+entera). A 15 s de base, una transmisión de 6 horas son ~1.400 consultas.
+
+Los cambios se aplican **sin reiniciar el chat**: los mensajes que ya están en
+pantalla se quedan. Para eso `useChatFeed` compara el contenido por valor y no
+por referencia, porque cada refresco trae un `script` nuevo aunque sea idéntico.
+
+Push instantáneo de verdad requeriría un servicio de tiempo real (Ably, Pusher)
+o mudar el hosting a uno con proceso persistente.
 
 Requiere que los presets estén guardados en el servidor. Con presets locales
 (sin backend) el editor usa el formato largo automáticamente.

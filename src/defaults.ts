@@ -136,6 +136,8 @@ export const DEFAULT_CONFIG: ChatConfig = {
   messageInterval: 1800,
   intervalJitter: 60,
 
+  liveSync: true,
+
   source: 'random',
   twitchChannel: '',
   hideCommands: true,

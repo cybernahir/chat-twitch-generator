@@ -73,11 +73,30 @@ export function useChatFeed(config: ChatConfig, running = true): ChatFeed {
   const filters = useRef({ maxMessages, hideCommands, blockedUsers })
   filters.current = { maxMessages, hideCommands, blockedUsers }
 
-  // Al cambiar la fuente de contenido arrancamos de cero.
+  // Y el guion tambien, para poder leerlo sin meterlo en las dependencias.
+  const scriptRef = useRef(script)
+  scriptRef.current = script
+
+  /**
+   * Clave por *valor* de lo que define el contenido del chat.
+   *
+   * Va serializada a proposito: `script` es un array, y con actualizacion en
+   * vivo llega una referencia nueva en cada refresco aunque el contenido sea
+   * identico. Si dependieramos de la referencia, el chat se vaciaria solo cada
+   * vez que la streamer toca un color.
+   */
+  const contentKey =
+    source === 'script'
+      ? `script:${loopScript}:${JSON.stringify(script)}`
+      : source === 'twitch'
+        ? `twitch:${twitchChannel.trim().toLowerCase()}`
+        : 'random'
+
+  // Al cambiar de verdad la fuente de contenido, arrancamos de cero.
   useEffect(() => {
     scriptIndex.current = 0
     setMessages([])
-  }, [source, script, loopScript, twitchChannel])
+  }, [contentKey])
 
   /* ---------------------- chat real de Twitch ---------------------- */
 
@@ -120,7 +139,7 @@ export function useChatFeed(config: ChatConfig, running = true): ChatFeed {
       let next: ChatMessage | null = null
 
       if (source === 'script') {
-        const lines = script.filter((l) => l.text.trim() || l.user.trim())
+        const lines = scriptRef.current.filter((l) => l.text.trim() || l.user.trim())
         if (lines.length) {
           if (scriptIndex.current >= lines.length) {
             if (!loopScript) return
@@ -143,7 +162,8 @@ export function useChatFeed(config: ChatConfig, running = true): ChatFeed {
 
       if (next) {
         const msg = next
-        setMessages((prev) => [...prev, msg].slice(-Math.max(1, maxMessages)))
+        const cap = Math.max(1, filters.current.maxMessages)
+        setMessages((prev) => [...prev, msg].slice(-cap))
       }
 
       const jitter = (messageInterval * intervalJitter) / 100
@@ -158,7 +178,9 @@ export function useChatFeed(config: ChatConfig, running = true): ChatFeed {
       cancelled = true
       if (timer.current) window.clearTimeout(timer.current)
     }
-  }, [running, source, script, loopScript, messageInterval, intervalJitter, maxMessages])
+    // `maxMessages` sale por ref: recortar la lista no tiene por que reiniciar
+    // el temporizador mientras se arrastra el slider.
+  }, [running, source, contentKey, messageInterval, intervalJitter])
 
   // Recorte por cantidad cuando se baja el tope estando ya lleno.
   useEffect(() => {
