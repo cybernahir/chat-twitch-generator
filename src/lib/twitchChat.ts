@@ -116,7 +116,7 @@ export function buildSegments(text: string, emotesTag: string | undefined): Mess
   for (const { start, end, id } of ranges) {
     if (start < cursor || start >= chars.length) continue
     if (start > cursor) segments.push({ type: 'text', value: chars.slice(cursor, start).join('') })
-    segments.push({ type: 'emote', id, name: chars.slice(start, end + 1).join('') })
+    segments.push({ type: 'emote', url: emoteUrl(id), name: chars.slice(start, end + 1).join('') })
     cursor = end + 1
   }
 
@@ -143,6 +143,7 @@ function toMessage(tags: Record<string, string>, prefix: string, text: string): 
     createdAt: Number(tags['tmi-sent-ts']) || Date.now(),
     segments: segments.some((s) => s.type === 'emote') ? segments : undefined,
     rawBadges,
+    platform: 'twitch',
   }
 }
 

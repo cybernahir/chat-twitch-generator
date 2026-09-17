@@ -153,3 +153,12 @@ body.overlay-mode {
   background: rgba(17, 17, 20, 0.86);
   border-radius: 8px;
 }
+
+/* Logo de la plataforma de origen. Va a la misma altura que las insignias
+   para que la fila del encabezado quede pareja. */
+.ov-platform {
+  display: inline-block;
+  flex: 0 0 auto;
+  object-fit: contain;
+  vertical-align: middle;
+}

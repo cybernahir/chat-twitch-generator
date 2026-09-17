@@ -140,6 +140,9 @@ export const DEFAULT_CONFIG: ChatConfig = {
 
   source: 'random',
   twitchChannel: '',
+  kickChannel: '',
+  kickChatroomId: '',
+  platformMark: 'none',
   hideCommands: true,
   blockedUsers: 'nightbot, streamelements, streamlabs, moobot, fossabot',
   script: DEFAULT_SCRIPT,

@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { RANDOM_MESSAGES, RANDOM_USERS, TWITCH_COLORS } from '../defaults'
+import { connectKickChat } from './kickChat'
+import type { KickStatus } from './kickChat'
 import { connectTwitchChat } from './twitchChat'
 import type { TwitchStatus } from './twitchChat'
 import type { BadgeId, ChatConfig, ChatMessage } from '../types'
@@ -50,26 +52,35 @@ export interface ChatFeed {
   messages: ChatMessage[]
   twitchStatus: TwitchStatus
   twitchDetail?: string
+  kickStatus: KickStatus
+  kickDetail?: string
 }
 
 /**
  * Motor del chat. Sirve las tres fuentes: mensajes al azar, un guion propio o
- * el chat real de Twitch. La lista visible se recorta a `maxMessages` y
- * opcionalmente se descarta lo que pase de `fadeOutAfter` segundos.
+ * el chat en vivo, que puede ser de Twitch, de Kick o de las dos a la vez
+ * mezcladas en una sola lista.
+ *
+ * La lista visible se recorta a `maxMessages` y opcionalmente se descarta lo
+ * que pase de `fadeOutAfter` segundos.
  */
 export function useChatFeed(config: ChatConfig, running = true): ChatFeed {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [twitchStatus, setTwitchStatus] = useState<TwitchStatus>('idle')
   const [twitchDetail, setTwitchDetail] = useState<string | undefined>()
+  const [kickStatus, setKickStatus] = useState<KickStatus>('idle')
+  const [kickDetail, setKickDetail] = useState<string | undefined>()
   const scriptIndex = useRef(0)
   const timer = useRef<number | null>(null)
 
   const {
     source, script, loopScript, messageInterval, intervalJitter,
-    maxMessages, fadeOutAfter, twitchChannel, hideCommands, blockedUsers,
+    maxMessages, fadeOutAfter, twitchChannel, kickChatroomId, hideCommands, blockedUsers,
   } = config
 
-  // Los filtros van por ref para que cambiarlos no reabra la conexion a Twitch.
+  const live = source === 'live'
+
+  // Los filtros van por ref para que cambiarlos no reabra las conexiones.
   const filters = useRef({ maxMessages, hideCommands, blockedUsers })
   filters.current = { maxMessages, hideCommands, blockedUsers }
 
@@ -88,8 +99,8 @@ export function useChatFeed(config: ChatConfig, running = true): ChatFeed {
   const contentKey =
     source === 'script'
       ? `script:${loopScript}:${JSON.stringify(script)}`
-      : source === 'twitch'
-        ? `twitch:${twitchChannel.trim().toLowerCase()}`
+      : live
+        ? `live:${twitchChannel.trim().toLowerCase()}:${kickChatroomId.trim()}`
         : 'random'
 
   // Al cambiar de verdad la fuente de contenido, arrancamos de cero.
@@ -98,38 +109,58 @@ export function useChatFeed(config: ChatConfig, running = true): ChatFeed {
     setMessages([])
   }, [contentKey])
 
+  /**
+   * Entrada comun para los dos chats en vivo. Los filtros y el recorte son los
+   * mismos vengan de donde vengan, asi que la mezcla es simplemente ir
+   * agregando al final: cada mensaje llega cuando llega.
+   */
+  const accept = useCallback((message: ChatMessage) => {
+    const { maxMessages: cap, hideCommands: hide, blockedUsers: blocked } = filters.current
+
+    if (hide && message.text.trim().startsWith('!')) return
+    if (parseBlocked(blocked).includes(message.user.toLowerCase())) return
+
+    setMessages((prev) => [...prev, message].slice(-Math.max(1, cap)))
+  }, [])
+
   /* ---------------------- chat real de Twitch ---------------------- */
 
   useEffect(() => {
-    if (source !== 'twitch' || !running) return
-
-    if (!twitchChannel.trim()) {
+    if (!live || !running || !twitchChannel.trim()) {
       setTwitchStatus('idle')
       return
     }
 
-    const dispose = connectTwitchChat(twitchChannel, {
+    return connectTwitchChat(twitchChannel, {
       onStatus: (status, detail) => {
         setTwitchStatus(status)
         setTwitchDetail(detail)
       },
-      onMessage: (message) => {
-        const { maxMessages: cap, hideCommands: hide, blockedUsers: blocked } = filters.current
-
-        if (hide && message.text.trim().startsWith('!')) return
-        if (parseBlocked(blocked).includes(message.user.toLowerCase())) return
-
-        setMessages((prev) => [...prev, message].slice(-Math.max(1, cap)))
-      },
+      onMessage: accept,
     })
+  }, [live, running, twitchChannel, accept])
 
-    return dispose
-  }, [source, running, twitchChannel])
+  /* ---------------------- chat real de Kick ---------------------- */
+
+  useEffect(() => {
+    if (!live || !running || !kickChatroomId.trim()) {
+      setKickStatus('idle')
+      return
+    }
+
+    return connectKickChat(kickChatroomId, {
+      onStatus: (status, detail) => {
+        setKickStatus(status)
+        setKickDetail(detail)
+      },
+      onMessage: accept,
+    })
+  }, [live, running, kickChatroomId, accept])
 
   /* ---------------------- simulacion ---------------------- */
 
   useEffect(() => {
-    if (!running || source === 'twitch') return
+    if (!running || live) return
 
     let cancelled = false
 
@@ -180,7 +211,7 @@ export function useChatFeed(config: ChatConfig, running = true): ChatFeed {
     }
     // `maxMessages` sale por ref: recortar la lista no tiene por que reiniciar
     // el temporizador mientras se arrastra el slider.
-  }, [running, source, contentKey, messageInterval, intervalJitter])
+  }, [running, live, source, contentKey, messageInterval, intervalJitter])
 
   // Recorte por cantidad cuando se baja el tope estando ya lleno.
   useEffect(() => {
@@ -202,5 +233,5 @@ export function useChatFeed(config: ChatConfig, running = true): ChatFeed {
     return () => window.clearInterval(id)
   }, [fadeOutAfter])
 
-  return { messages, twitchStatus, twitchDetail }
+  return { messages, twitchStatus, twitchDetail, kickStatus, kickDetail }
 }

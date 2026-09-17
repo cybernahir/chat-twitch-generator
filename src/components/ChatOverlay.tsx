@@ -1,7 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { CUSTOM_FONT_FAMILY, ensureGoogleFont, fontStack } from '../fonts'
 import { injectFontFace } from '../lib/fontStore'
-import { emoteUrl } from '../lib/twitchChat'
 import type { ChatConfig, ChatMessage } from '../types'
 import { BadgeRow } from './Badge'
 import '../styles/overlay.css'
@@ -15,6 +14,22 @@ export function rgba(hex: string, opacityPct: number): string {
   const g = (n >> 8) & 255
   const b = n & 255
   return `rgba(${r}, ${g}, ${b}, ${Math.min(100, Math.max(0, opacityPct)) / 100})`
+}
+
+/**
+ * Marcas de las plataformas.
+ *
+ * Los logos salen de Simple Icons, que sirve las marcas oficiales y deja
+ * elegir el color por URL. Phosphor trae el de Twitch pero no el de Kick, y
+ * mezclar dos fuentes los dejaria con distinto peso optico.
+ */
+const PLATFORMS: Record<string, { label: string; color: string; slug: string }> = {
+  twitch: { label: 'Twitch', color: '#9146FF', slug: 'twitch' },
+  kick: { label: 'Kick', color: '#53FC18', slug: 'kick' },
+}
+
+function platformLogo(slug: string, color: string): string {
+  return `https://cdn.simpleicons.org/${slug}/${color.replace('#', '')}`
 }
 
 interface Props {
@@ -96,10 +111,31 @@ export default function ChatOverlay({ config, messages }: Props) {
     <div className="ov-stage" style={stageStyle}>
       <div className="ov-rotor" style={rotorStyle}>
         <div className={`ov-list ov-anim-${c.animation}`} style={listStyle}>
-          {ordered.map((m) => (
-            <div key={m.id} className="ov-row" style={rowStyle}>
+          {ordered.map((m) => {
+            const platform = m.platform ? PLATFORMS[m.platform] : null
+            const withBar = platform && (c.platformMark === 'bar' || c.platformMark === 'both')
+            const withLogo = platform && (c.platformMark === 'logo' || c.platformMark === 'both')
+            return (
+            <div
+              key={m.id}
+              className="ov-row"
+              style={
+                withBar && platform
+                  ? { ...rowStyle, borderLeft: `4px solid ${platform.color}` }
+                  : rowStyle
+              }
+            >
               <div className={`ov-inner ${c.nameOnOwnLine ? 'is-stacked' : ''}`}>
                 <span className="ov-head">
+                  {withLogo && platform && (
+                    <img
+                      className="ov-platform"
+                      src={platformLogo(platform.slug, platform.color)}
+                      alt=""
+                      title={platform.label}
+                      style={{ width: c.badgeSize, height: c.badgeSize }}
+                    />
+                  )}
                   {c.showBadges && (
                     <BadgeRow
                       badges={m.badges}
@@ -132,7 +168,7 @@ export default function ChatOverlay({ config, messages }: Props) {
                           <img
                             key={i}
                             className="ov-emote"
-                            src={emoteUrl(seg.id)}
+                            src={seg.url}
                             alt={seg.name}
                             title={seg.name}
                           />
@@ -144,7 +180,8 @@ export default function ChatOverlay({ config, messages }: Props) {
                 </span>
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     </div>

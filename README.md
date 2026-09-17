@@ -60,10 +60,66 @@ su cuenta; lo que no puede es usar *tu* sitio. Para el caso de uso —que sólo 
 streamer entre a tu editor— alcanza. Si necesitaras cerrar también eso, hay que
 pasar a Netlify password protection a nivel sitio (plan pago).
 
+## Chat real: Twitch y Kick juntos
+
+La fuente **En vivo** puede leer Twitch, Kick o **las dos a la vez**, mezcladas
+en una sola lista. Cada mensaje entra cuando llega; los filtros y el recorte son
+los mismos venga de donde venga.
+
+**Marcar de qué plataforma vino** es lo que hace legible un chat mezclado, y
+tiene cuatro modos:
+
+| Modo | Qué hace |
+| --- | --- |
+| `No marcar` | Nada. Los mensajes se ven todos iguales. |
+| `Logo de la plataforma` | El logo al principio del mensaje, del mismo alto que las insignias. |
+| `Barrita de color al costado` | Borde izquierdo: morado Twitch, verde Kick. |
+| `Logo y barrita` | Las dos cosas. |
+
+Los logos se sirven desde **Simple Icons**, que publica las marcas oficiales y
+deja elegir el color por URL. No están dibujados a mano: Phosphor, la librería de
+iconos del proyecto, trae el de Twitch pero no el de Kick, y mezclar dos fuentes
+los dejaría con distinto peso óptico. La contra es que OBS necesita internet para
+mostrarlos, igual que ya lo necesita para los emotes.
+
+Los presets que venían con la barrita prendida se migran solos a `bar`.
+
+### Kick, sin login
+
+Kick no tiene servidor de chat propio: usa **Pusher**, y su canal público acepta
+suscripciones anónimas. Igual que con Twitch, el overlay no lleva ningún token
+adentro.
+
+Verificado contra el chat en vivo: llegan mensajes, nombres con su **color
+real**, insignias (sub, mod, VIP, verificado) y **emotes**, que Kick escribe
+dentro del propio mensaje como `[emote:123:nombre]` y sirve desde
+`files.kick.com`.
+
+Dos diferencias con Twitch que condicionan el diseño:
+
+1. **Hay que traducir el nombre del canal a un id de sala**, y ese endpoint de
+   Kick **no manda cabeceras CORS**: el navegador no puede pedirlo. Por eso la
+   traducción la hace el editor contra `/api/kick/:slug` y el id queda guardado
+   en el preset (`kickChatroomId`). El overlay se conecta derecho al WebSocket y
+   no depende de nada más.
+2. **La clave de Pusher es la que Kick publica en su propio frontend.** Es la vía
+   que usan todos los overlays de Kick, pero no está documentada: si algún día la
+   rotan hay que actualizarla en `src/lib/kickChat.ts`.
+
+> Kick está detrás de Cloudflare. Si su protección anti-bots corta el pedido
+> desde el servidor, la búsqueda falla y el id de la sala se puede **pegar a
+> mano** en el campo de al lado. El overlay funciona igual.
+
+### Por qué no se usa la API oficial de Kick
+
+Kick tiene API oficial con OAuth 2.1, pero para leer chat entrega los eventos por
+**webhook**: Kick le pega a una URL nuestra. Eso obligaría a guardar los mensajes
+y que el overlay los consulte, que para un chat es demasiado lento. El WebSocket
+público llega instantáneo y sin cuenta.
+
 ## Chat real de Twitch
 
-El overlay puede leer el chat en vivo de un canal, además de simularlo. En
-**Mensajes** se elige de dónde salen: `Twitch`, `Al azar` o `Los míos`.
+En **Mensajes** se elige de dónde salen: `En vivo`, `Al azar` o `Los míos`.
 
 ### Sin login, y eso es a propósito
 
@@ -270,15 +326,42 @@ npm run preview    # sirve dist/
 npm run typecheck
 ```
 
-`npm run dev` levanta sólo Vite, así que la puerta de entrada **no corre**: el
-editor abre directo. Es lo práctico para desarrollar.
+`npm run dev` levanta sólo Vite. Alcanza para maquetar, pero **no corre nada del
+backend**: no hay login, los presets van a localStorage, el link de OBS sale en
+formato largo y no anda ni la búsqueda de canal de Kick ni la vinculación de
+Twitch.
 
-Para probar el login local necesitás el CLI de Netlify y la clave en el entorno:
+### Correr el backend local
+
+Hace falta el CLI de Netlify, y con él **Node 22 o superior**, por dos motivos
+distintos:
+
+- `netlify-cli` 27 pide Node >= 22.13 para instalarse.
+- Las functions usan `crypto` global, que en **ESM** aparece recién en Node 20.
+  Ojo con verificarlo: `node -e` corre en CommonJS, donde Node 18 sí lo expone,
+  así que ese chequeo engaña. En un `.mjs` sobre Node 18 no existe.
 
 ```bash
 npm i -g netlify-cli
-APP_PASSWORD=loquesea npm run dev:auth
 ```
+
+La clave de acceso se pone en un `.env` en la raíz, que ya está en `.gitignore`:
+
+```
+APP_PASSWORD=loquesea
+```
+
+Y después:
+
+```bash
+npm run dev:auth
+```
+
+Queda todo en `http://localhost:8888` (Vite por dentro en el 5173). Netlify
+Blobs corre local, así que los presets se guardan de verdad.
+
+`netlify-cli` **no es dependencia del proyecto** a propósito: pesa cientos de
+megas y sólo hace falta para esto.
 
 ## Deploy en Netlify
 

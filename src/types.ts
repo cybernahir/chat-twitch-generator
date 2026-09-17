@@ -2,7 +2,13 @@ export type ChatDirection = 'bottom' | 'top'
 export type Align = 'left' | 'center' | 'right'
 export type AnimationType = 'none' | 'fade' | 'slide-left' | 'slide-right' | 'slide-up' | 'pop'
 export type UsernameColorMode = 'twitch' | 'fixed' | 'inherit'
-export type SourceMode = 'random' | 'script' | 'twitch'
+/** 'twitch' quedo de una version anterior; se migra a 'live' al cargar. */
+export type SourceMode = 'random' | 'script' | 'live' | 'twitch'
+
+export type Platform = 'twitch' | 'kick'
+
+/** Como se marca de que plataforma vino cada mensaje. */
+export type PlatformMark = 'none' | 'logo' | 'bar' | 'both'
 export type LayoutMode = 'bubble' | 'flat'
 
 export type BadgeId = 'broadcaster' | 'mod' | 'vip' | 'sub' | 'prime' | 'turbo' | 'staff'
@@ -18,7 +24,7 @@ export interface ScriptLine {
 /** Un mensaje se parte en texto y emotes para poder dibujar las imagenes. */
 export type MessageSegment =
   | { type: 'text'; value: string }
-  | { type: 'emote'; id: string; name: string }
+  | { type: 'emote'; url: string; name: string }
 
 export interface ChatMessage {
   id: string
@@ -27,10 +33,12 @@ export interface ChatMessage {
   color: string
   badges: BadgeId[]
   createdAt: number
-  /** Solo en mensajes reales de Twitch que traen emotes. */
+  /** Solo en mensajes reales que traen emotes. */
   segments?: MessageSegment[]
   /** Insignias crudas de Twitch (`subscriber/9`), para buscar su imagen real. */
   rawBadges?: string[]
+  /** De dónde vino. Los mensajes simulados no lo traen. */
+  platform?: Platform
 }
 
 export interface ChatConfig {
@@ -109,8 +117,13 @@ export interface ChatConfig {
   /** Aplicar en vivo los cambios guardados, sin recargar la fuente en OBS. */
   liveSync: boolean
 
-  /* Chat real de Twitch (source === 'twitch') */
+  /* Chat en vivo (source === 'live'). Se pueden usar las dos a la vez. */
   twitchChannel: string
+  kickChannel: string
+  /** Sala de chat de Kick, resuelta en el editor y guardada para el overlay. */
+  kickChatroomId: string
+  /** Marca de origen: logo, barrita del color de la plataforma, las dos o nada. */
+  platformMark: PlatformMark
   hideCommands: boolean
   blockedUsers: string
 

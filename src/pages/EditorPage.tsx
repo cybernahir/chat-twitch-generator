@@ -34,6 +34,7 @@ import {
 import { DEFAULT_CONFIG } from '../defaults'
 import { buildOverlayUrl, buildPresetOverlayUrl } from '../lib/encode'
 import { injectFontFace, loadFont } from '../lib/fontStore'
+import { normalizeConfig } from '../lib/normalizeConfig'
 import { newPresetId, savePreset } from '../lib/presetStore'
 import { useChatFeed } from '../lib/useChatFeed'
 import {
@@ -44,6 +45,8 @@ import {
 } from '../lib/twitchAccount'
 import type { TwitchAccountState } from '../lib/twitchAccount'
 import type { TwitchStatus } from '../lib/twitchChat'
+import type { KickStatus } from '../lib/kickChat'
+import { resolveKickChannel } from '../lib/kickChannel'
 import { navigate } from '../lib/useHashRoute'
 import type { AnimationType, ChatConfig, Preset, PresetStorageMode } from '../types'
 
@@ -61,6 +64,14 @@ const GROUPS: { id: GroupId; label: string; Glyph: Icon; hint: string }[] = [
 const TWITCH_STATUS_LABEL: Record<TwitchStatus, string> = {
   idle: 'Sin conectar',
   connecting: 'Conectando con Twitch',
+  connected: 'Leyendo el chat en vivo',
+  reconnecting: 'Se cortó, reconectando',
+  error: 'No se pudo conectar',
+}
+
+const KICK_STATUS_LABEL: Record<KickStatus, string> = {
+  idle: 'Sin conectar',
+  connecting: 'Conectando con Kick',
   connected: 'Leyendo el chat en vivo',
   reconnecting: 'Se cortó, reconectando',
   error: 'No se pudo conectar',
@@ -92,6 +103,8 @@ export default function EditorPage({ presetId, presets, mode, loading, onPresets
   const [twitchAccount, setTwitchAccount] = useState<TwitchAccountState | null>(null)
   const [badgeBusy, setBadgeBusy] = useState(false)
   const [badgeNote, setBadgeNote] = useState<string | null>(null)
+  const [kickBusy, setKickBusy] = useState(false)
+  const [kickNote, setKickNote] = useState<string | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
   const [stageBox, setStageBox] = useState({ w: 0, h: 0 })
 
@@ -111,7 +124,7 @@ export default function EditorPage({ presetId, presets, mode, loading, onPresets
 
     // Mezclamos contra los valores por defecto por si el preset es de una
     // versión anterior a la que le falten campos nuevos.
-    const merged = { ...DEFAULT_CONFIG, ...found.config, v: 1 as const }
+    const merged = normalizeConfig(found.config)
     setConfig(merged)
     setName(found.name)
     setSnapshot(snapshotOf(found.name, merged))
@@ -190,6 +203,29 @@ export default function EditorPage({ presetId, presets, mode, loading, onPresets
     setTwitchAccount(await fetchTwitchStatus())
   }
 
+  /**
+   * Traduce el canal de Kick a su id de sala y lo guarda en el preset.
+   *
+   * Se hace una sola vez acá, y no en el overlay, porque el endpoint de Kick no
+   * manda CORS: tiene que pasar por nuestra function.
+   */
+  const resolveKick = async () => {
+    setKickBusy(true)
+    setKickNote(null)
+
+    const result = await resolveKickChannel(config.kickChannel)
+    if ('error' in result) {
+      setKickNote(result.error)
+    } else {
+      patch({ kickChannel: result.slug, kickChatroomId: result.chatroomId })
+      setKickNote(
+        `Listo: ${result.displayName}, sala ${result.chatroomId}${result.live ? ', en vivo ahora' : ''}.`,
+      )
+    }
+
+    setKickBusy(false)
+  }
+
   // Escalamos la preview para que el lienzo entre siempre en pantalla.
   useEffect(() => {
     const el = stageRef.current
@@ -206,7 +242,10 @@ export default function EditorPage({ presetId, presets, mode, loading, onPresets
     return Math.min(1, stageBox.w / config.width, stageBox.h / config.height)
   }, [stageBox, config.width, config.height])
 
-  const { messages, twitchStatus, twitchDetail } = useChatFeed(config, running)
+  const { messages, twitchStatus, twitchDetail, kickStatus, kickDetail } = useChatFeed(
+    config,
+    running,
+  )
 
   /**
    * El link corto necesita que el preset esté guardado en el servidor, porque
@@ -323,12 +362,12 @@ export default function EditorPage({ presetId, presets, mode, loading, onPresets
                   value={config.source}
                   onChange={(v) => patch({ source: v })}
                   options={[
-                    { value: 'twitch', label: 'Twitch' },
+                    { value: 'live', label: 'En vivo' },
                     { value: 'random', label: 'Al azar' },
                     { value: 'script', label: 'Los míos' },
                   ]}
                 />
-                {config.source !== 'twitch' && (
+                {config.source !== 'live' && (
                   <>
                     <Slider
                       label="Uno cada"
@@ -366,14 +405,14 @@ export default function EditorPage({ presetId, presets, mode, loading, onPresets
                 />
               </Section>
 
-              {config.source === 'twitch' && (
-                <Section title="Canal de Twitch">
+              {config.source === 'live' && (
+                <Section title="Twitch" hint="opcional">
                   <label className="row row-wide">
                     <span className="row-label">Nombre del canal</span>
                     <input
                       type="text"
                       spellCheck={false}
-                      placeholder="elcanaldetunovia"
+                      placeholder="nombre del canal en Twitch"
                       value={config.twitchChannel}
                       onChange={(e) =>
                         patch({ twitchChannel: e.target.value.trim().replace(/^#/, '') })
@@ -474,12 +513,90 @@ export default function EditorPage({ presetId, presets, mode, loading, onPresets
                     ningún dato de la cuenta adentro. Llegan los nombres con su color real, las
                     insignias y los emotes de Twitch.
                   </p>
+                </Section>
+              )}
 
+              {config.source === 'live' && (
+                <Section title="Kick" hint="opcional">
+                  <label className="row row-wide">
+                    <span className="row-label">Nombre del canal</span>
+                    <input
+                      type="text"
+                      spellCheck={false}
+                      placeholder="nombre del canal en Kick"
+                      value={config.kickChannel}
+                      onChange={(e) =>
+                        patch({ kickChannel: e.target.value.trim(), kickChatroomId: '' })
+                      }
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-block"
+                    disabled={kickBusy || !config.kickChannel.trim()}
+                    onClick={() => void resolveKick()}
+                  >
+                    {kickBusy ? 'Buscando el canal…' : 'Buscar la sala de chat'}
+                  </button>
+
+                  {kickNote && <p className="hint">{kickNote}</p>}
+
+                  <label className="row row-wide">
+                    <span className="row-label">Id de la sala</span>
+                    <input
+                      type="text"
+                      spellCheck={false}
+                      placeholder="se completa solo al buscar"
+                      value={config.kickChatroomId}
+                      onChange={(e) =>
+                        patch({ kickChatroomId: e.target.value.replace(/\D/g, '') })
+                      }
+                    />
+                  </label>
+
+                  <div className={`tw-status is-${kickStatus}`}>
+                    <span className="tw-dot" />
+                    <span className="tw-status-text">
+                      {KICK_STATUS_LABEL[kickStatus]}
+                      {kickDetail && <small>{kickDetail}</small>}
+                    </span>
+                  </div>
+
+                  <p className="hint">
+                    Kick no deja que el navegador pregunte por el canal, así que el id de la sala se
+                    busca una vez desde acá y queda guardado en el preset. Si la búsqueda falla, lo
+                    podés pegar a mano.
+                  </p>
+                </Section>
+              )}
+
+              {config.source === 'live' && (
+                <Section title="Filtros" hint="para los dos chats">
                   <Toggle
                     label="Ocultar comandos (!)"
                     value={config.hideCommands}
                     onChange={(v) => patch({ hideCommands: v })}
                   />
+
+                  <Select
+                    label="Marcar de qué plataforma vino"
+                    value={config.platformMark}
+                    onChange={(v) => patch({ platformMark: v })}
+                    options={[
+                      { value: 'none', label: 'No marcar' },
+                      { value: 'logo', label: 'Logo de la plataforma' },
+                      { value: 'bar', label: 'Barrita de color al costado' },
+                      { value: 'both', label: 'Logo y barrita' },
+                    ]}
+                  />
+                  {config.platformMark !== 'none' && (
+                    <small className="hint">
+                      {config.platformMark === 'bar'
+                        ? 'Barrita del color de cada plataforma: morado Twitch, verde Kick.'
+                        : 'El logo va al principio del mensaje, del mismo tamaño que las insignias. Se sirve desde Simple Icons, así que OBS necesita internet.'}
+                    </small>
+                  )}
 
                   <label className="row row-wide">
                     <span className="row-label">Usuarios a ocultar</span>

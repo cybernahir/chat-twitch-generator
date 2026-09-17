@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import ChatOverlay from '../components/ChatOverlay'
 import { DEFAULT_CONFIG } from '../defaults'
 import { decodeConfig } from '../lib/encode'
+import { normalizeConfig } from '../lib/normalizeConfig'
 import { useChatFeed } from '../lib/useChatFeed'
 import type { ChatConfig } from '../types'
 
@@ -93,7 +94,7 @@ export default function OverlayPage() {
             lastUpdatedAt.current = stamp
             lastChange.current = Date.now()
             if (!cancelled) {
-              setFetched({ ...DEFAULT_CONFIG, ...(data.config ?? {}), v: 1 })
+              setFetched(normalizeConfig(data.config))
               setFailed(false)
             }
           }

@@ -3,3 +3,9 @@ dist
 .DS_Store
 *.local
 .netlify
+
+# Variables locales: nunca se commitean
+.env
+
+# Lockfile que genera netlify dev para las edge functions (local)
+deno.lock

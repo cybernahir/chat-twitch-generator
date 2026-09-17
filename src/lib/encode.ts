@@ -1,4 +1,5 @@
 import { DEFAULT_CONFIG } from '../defaults'
+import { normalizeConfig } from './normalizeConfig'
 import type { ChatConfig } from '../types'
 
 /** base64url sobre UTF-8, apto para meter en la URL. */
@@ -29,7 +30,7 @@ export function decodeConfig(raw: string | null): ChatConfig {
   try {
     const parsed = JSON.parse(fromBase64Url(raw)) as Partial<ChatConfig>
     // Merge contra los defaults para tolerar links viejos a los que les falten campos.
-    return { ...DEFAULT_CONFIG, ...parsed, v: 1 }
+    return normalizeConfig(parsed)
   } catch {
     console.warn('[chat-generator] No se pudo leer la config de la URL, uso los valores por defecto.')
     return DEFAULT_CONFIG
