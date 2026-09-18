@@ -182,6 +182,14 @@ Las insignias se guardan **dentro del preset**, así el overlay las dibuja sin
 depender de que la API esté disponible. Si agrega una insignia nueva, se toca
 *Actualizar insignias reales* y se guarda el preset.
 
+Se guardan **todas**, globales incluidas: no hay forma de saber de antemano qué
+insignia va a tener quien escriba —alguien puede aparecer con una de Lead
+Moderator o de un evento— y la que falta no se dibuja. Para que eso no infle el
+preset, de cada una se guarda **sólo el id** y el overlay rearma la URL
+(`badgeUrl()` en `twitchChat.ts`): son ~530 insignias, y repetir el prefijo del
+CDN en cada una costaba 20 KB de más (51,8 KB contra 30,7 KB). Los presets
+viejos guardaron la URL entera y se siguen leyendo igual.
+
 Lo que **no** llega por acá: las insignias de 7TV, BTTV y FFZ, que viven en APIs
 de terceros (sus emotes tampoco se dibujan hoy).
 

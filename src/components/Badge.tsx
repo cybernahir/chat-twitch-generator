@@ -8,7 +8,7 @@ import {
   VideoCamera,
 } from '@phosphor-icons/react'
 import type { Icon } from '@phosphor-icons/react'
-import { BADGE_MAP } from '../lib/twitchChat'
+import { BADGE_MAP, badgeUrl } from '../lib/twitchChat'
 import type { BadgeId } from '../types'
 
 interface BadgeStyle {
@@ -64,7 +64,7 @@ export function BadgeRow({
               <img
                 key={raw}
                 className="ov-badge-img"
-                src={src}
+                src={badgeUrl(src)}
                 alt=""
                 style={{ width: size, height: size }}
               />

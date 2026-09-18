@@ -21,24 +21,18 @@ import { SESSION_COOKIE, isValidToken, readCookie, safeEqual, sign } from '../sh
  */
 
 /**
- * Insignias globales que guardamos.
+ * Prefijo del CDN de insignias.
  *
- * Twitch sirve ~380 sets globales (573 imagenes, 56 KB de JSON) y la enorme
- * mayoria son promos de eventos y juegos que no van a aparecer nunca en un
- * chat chico: "2026-bafta-games-awards", "007-gun-barrel", "aang". Como las
- * insignias se guardan **dentro del preset**, meterlas todas infla el preset y
- * el link largo del overlay para nada.
+ * Todas las imagenes son `<PREFIJO>/<id>/<tamano>`, asi que guardamos solo el
+ * id y el overlay rearma la URL. Son ~530 insignias por preset: repetir el
+ * prefijo en cada una costaba 20 KB al pedo (51,8 KB contra 30,7 KB).
  *
- * Con esta lista quedan ~190 imagenes (18 KB). Las del canal se guardan
- * siempre, completas: son las que importan y son pocas. Una insignia global
- * fuera de la lista simplemente no se dibuja, igual que hoy.
+ * Hubo una version que ademas filtraba las globales por una lista de sets
+ * "utiles" para achicar mas. Fue un error: descartaba insignias que la gente
+ * tiene de verdad (Lead Moderator, las de eventos) y no habia forma de saber
+ * de antemano cuales iban a aparecer. Van todas.
  */
-const GLOBAL_BADGES = new Set([
-  'broadcaster', 'moderator', 'vip', 'subscriber', 'founder', 'premium', 'turbo',
-  'staff', 'admin', 'global_mod', 'partner', 'ambassador', 'verified',
-  'bits', 'bits-leader', 'sub-gifter', 'sub-gift-leader', 'hype-train',
-  'artist-badge', 'moments', 'predictions', 'no_audio', 'no_video',
-])
+const BADGE_CDN = 'https://static-cdn.jtvnw.net/badges/v1/'
 
 const STORE = 'twitch-account'
 const KEY = 'default'
@@ -361,15 +355,19 @@ export default async function handler(req: Request): Promise<Response> {
         helix(token, `/chat/badges?broadcaster_id=${encodeURIComponent(channel)}`),
       ])
 
-      // De las globales guardamos solo las utiles; las del canal van enteras y
-      // pisan a las globales, asi que si tiene insignia de sub propia, gana esa.
-      const globals = (global_?.data ?? []).filter((set: any) => GLOBAL_BADGES.has(set.set_id))
-
+      // Las del canal pisan a las globales: si tiene insignia de sub propia,
+      // esa es la que hay que mostrar.
       const images: Record<string, string> = {}
-      for (const set of [...globals, ...(channelBadges?.data ?? [])]) {
+      for (const set of [...(global_?.data ?? []), ...(channelBadges?.data ?? [])]) {
         for (const version of set.versions ?? []) {
           const src = version.image_url_4x || version.image_url_2x || version.image_url_1x
-          if (src) images[`${set.set_id}/${version.id}`] = src
+          if (!src) continue
+          // Si sigue el patron del CDN guardamos solo el id; si algun dia
+          // cambia de forma, la URL entera igual funciona.
+          images[`${set.set_id}/${version.id}`] =
+            src.startsWith(BADGE_CDN) && src.endsWith('/3')
+              ? src.slice(BADGE_CDN.length, -2)
+              : src
         }
       }
 

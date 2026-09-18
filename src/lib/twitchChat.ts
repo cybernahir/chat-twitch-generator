@@ -16,6 +16,7 @@ import type { BadgeId, ChatMessage, MessageSegment } from '../types'
 
 const ENDPOINT = 'wss://irc-ws.chat.twitch.tv:443'
 const EMOTE_CDN = 'https://static-cdn.jtvnw.net/emoticons/v2'
+const BADGE_CDN = 'https://static-cdn.jtvnw.net/badges/v1'
 
 export type TwitchStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error'
 
@@ -36,6 +37,7 @@ export interface TwitchChatHandlers {
 export const BADGE_MAP: Record<string, BadgeId> = {
   broadcaster: 'broadcaster',
   moderator: 'mod',
+  lead_moderator: 'mod',
   vip: 'vip',
   subscriber: 'sub',
   founder: 'sub',
@@ -48,6 +50,17 @@ export const BADGE_MAP: Record<string, BadgeId> = {
 
 export function emoteUrl(id: string): string {
   return `${EMOTE_CDN}/${id}/default/dark/3.0`
+}
+
+/**
+ * URL de la imagen de una insignia a partir de lo que guarda el preset.
+ *
+ * Se guarda solo el id (`0822047b-...`) porque son ~530 insignias por preset y
+ * repetir el prefijo del CDN en cada una costaba 20 KB. Los presets hechos
+ * antes de eso guardaron la URL entera, asi que esa forma se acepta igual.
+ */
+export function badgeUrl(stored: string): string {
+  return stored.includes('://') ? stored : `${BADGE_CDN}/${stored}/3`
 }
 
 /** Desescapa un valor de tag IRCv3. */
