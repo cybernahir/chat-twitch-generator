@@ -22,6 +22,14 @@ export type TwitchStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' 
 export interface TwitchChatHandlers {
   onMessage: (message: ChatMessage) => void
   onStatus: (status: TwitchStatus, detail?: string) => void
+  /**
+   * Id numerico del canal, que Twitch manda en el ROOMSTATE al entrar.
+   *
+   * Viene gratis con la conexion que ya tenemos, asi que evita una vuelta a la
+   * API para traducir el nombre del canal a id. Lo usa el editor para pedir las
+   * insignias del canal que se esta leyendo.
+   */
+  onRoomId?: (roomId: string) => void
 }
 
 /** Insignias de Twitch que sabemos dibujar con icono. El resto se ignora. */
@@ -210,6 +218,12 @@ export function connectTwitchChat(channel: string, handlers: TwitchChatHandlers)
 
         const space = rest.indexOf(' ')
         const command = space < 0 ? rest : rest.slice(0, space)
+
+        // ROOMSTATE llega al entrar al canal y trae el id del canal adentro.
+        if (command === 'ROOMSTATE') {
+          if (tags['room-id']) handlers.onRoomId?.(tags['room-id'])
+          continue
+        }
 
         if (command === '366') {
           retries = 0

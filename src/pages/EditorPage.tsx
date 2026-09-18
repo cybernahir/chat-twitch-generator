@@ -181,17 +181,31 @@ export default function EditorPage({ presetId, presets, mode, loading, onPresets
     navigate('/')
   }
 
-  /** Trae el arte real de las insignias y lo guarda dentro del preset. */
+  /**
+   * Trae el arte real de las insignias y lo guarda dentro del preset.
+   *
+   * Van las del canal que se esta leyendo, que no tiene por que ser el de la
+   * cuenta vinculada: asi se ven las insignias de sub personalizadas de
+   * cualquier canal. Si el chat ya esta conectado usamos el id que llego por
+   * IRC; si no, el servidor traduce el nombre.
+   */
   const refreshBadges = async () => {
     setBadgeBusy(true)
     setBadgeNote(null)
 
-    const result = await fetchBadgeImages(twitchAccount?.account?.userId)
+    const channel = config.twitchChannel.trim()
+    const result = await fetchBadgeImages({
+      broadcasterId: twitchRoomId,
+      login: channel || twitchAccount?.account?.login,
+    })
     if ('error' in result) {
       setBadgeNote(result.error)
     } else {
       patch({ badgeImages: result.images })
-      setBadgeNote(`Listo: ${Object.keys(result.images).length} insignias guardadas en el preset.`)
+      const donde = channel ? ` de ${channel}` : ''
+      setBadgeNote(
+        `Listo: ${Object.keys(result.images).length} insignias${donde} guardadas en el preset.`,
+      )
     }
 
     setBadgeBusy(false)
@@ -242,7 +256,7 @@ export default function EditorPage({ presetId, presets, mode, loading, onPresets
     return Math.min(1, stageBox.w / config.width, stageBox.h / config.height)
   }, [stageBox, config.width, config.height])
 
-  const { messages, twitchStatus, twitchDetail, kickStatus, kickDetail } = useChatFeed(
+  const { messages, twitchStatus, twitchDetail, kickStatus, kickDetail, twitchRoomId } = useChatFeed(
     config,
     running,
   )
@@ -477,10 +491,18 @@ export default function EditorPage({ presetId, presets, mode, loading, onPresets
                         </button>
                       )}
 
+                    </div>
+                  )}
+
+                  {/* Las insignias no dependen de la cuenta vinculada: el
+                      servidor las pide con un token de aplicacion, asi que
+                      sirve para el canal de cualquiera. */}
+                  {twitchAccount?.configured && (
+                    <>
                       <button
                         type="button"
                         className="btn btn-secondary btn-block"
-                        disabled={badgeBusy}
+                        disabled={badgeBusy || !(config.twitchChannel.trim() || twitchAccount.account)}
                         onClick={() => void refreshBadges()}
                       >
                         {badgeBusy
@@ -497,7 +519,13 @@ export default function EditorPage({ presetId, presets, mode, loading, onPresets
                           reales.
                         </p>
                       )}
-                    </div>
+                      {!badgeNote && !config.badgeImages && (
+                        <p className="hint">
+                          Trae las insignias del canal de arriba, incluidas las de sub
+                          personalizadas. No hace falta que esa cuenta esté vinculada.
+                        </p>
+                      )}
+                    </>
                   )}
 
                   <div className={`tw-status is-${twitchStatus}`}>

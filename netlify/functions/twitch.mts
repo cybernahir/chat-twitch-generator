@@ -9,13 +9,36 @@ import { SESSION_COOKIE, isValidToken, readCookie, safeEqual, sign } from '../sh
  *
  * Para que sirve tenerlo:
  *   - saber el canal sin escribirlo a mano
- *   - traer el arte real de las insignias del canal (subs, bits), que la API
- *     solo entrega con token de usuario
+ *
+ * Las insignias **no** lo necesitan: se leen con un token de aplicacion
+ * (client_credentials), que no representa a ningun usuario y sirve para
+ * cualquier canal. Por eso se pueden mostrar las insignias personalizadas del
+ * canal de otra persona sin que esa persona vincule nada.
  *
  * Para que NO sirve, y conviene tenerlo claro: el overlay que se pega en OBS es
  * publico, asi que no puede llevar el token adentro. Por eso el overlay sigue
  * leyendo el chat por IRC anonimo y no por EventSub.
  */
+
+/**
+ * Insignias globales que guardamos.
+ *
+ * Twitch sirve ~380 sets globales (573 imagenes, 56 KB de JSON) y la enorme
+ * mayoria son promos de eventos y juegos que no van a aparecer nunca en un
+ * chat chico: "2026-bafta-games-awards", "007-gun-barrel", "aang". Como las
+ * insignias se guardan **dentro del preset**, meterlas todas infla el preset y
+ * el link largo del overlay para nada.
+ *
+ * Con esta lista quedan ~190 imagenes (18 KB). Las del canal se guardan
+ * siempre, completas: son las que importan y son pocas. Una insignia global
+ * fuera de la lista simplemente no se dibuja, igual que hoy.
+ */
+const GLOBAL_BADGES = new Set([
+  'broadcaster', 'moderator', 'vip', 'subscriber', 'founder', 'premium', 'turbo',
+  'staff', 'admin', 'global_mod', 'partner', 'ambassador', 'verified',
+  'bits', 'bits-leader', 'sub-gifter', 'sub-gift-leader', 'hype-train',
+  'artist-badge', 'moments', 'predictions', 'no_audio', 'no_video',
+])
 
 const STORE = 'twitch-account'
 const KEY = 'default'
@@ -146,10 +169,64 @@ async function freshToken(account: StoredAccount): Promise<StoredAccount> {
   return updated
 }
 
-async function helix(account: StoredAccount, path: string): Promise<any> {
+/**
+ * Token de aplicacion (client_credentials).
+ *
+ * No representa a ningun usuario: lo emite la app para si misma con el
+ * client id y el secret. Alcanza para leer las insignias de *cualquier*
+ * canal, que es justo lo que necesitamos para mostrar las insignias
+ * personalizadas de un canal ajeno sin pedirle a nadie que se loguee.
+ *
+ * Se cachea en el modulo: mientras la instancia siga caliente, varias
+ * invocaciones reusan el mismo token en vez de pedir uno nuevo cada vez.
+ */
+let cachedAppToken: { token: string; expiresAt: number } | null = null
+
+async function appToken(): Promise<string> {
+  if (cachedAppToken && cachedAppToken.expiresAt - 60_000 > Date.now()) {
+    return cachedAppToken.token
+  }
+
+  const res = await fetch(TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: env('TWITCH_CLIENT_ID') ?? '',
+      client_secret: env('TWITCH_CLIENT_SECRET') ?? '',
+      grant_type: 'client_credentials',
+    }),
+  })
+
+  if (!res.ok) throw new Error(`Twitch devolvio ${res.status} al pedir el token de la app.`)
+
+  const data = (await res.json()) as { access_token: string; expires_in: number }
+  cachedAppToken = {
+    token: data.access_token,
+    expiresAt: Date.now() + data.expires_in * 1000,
+  }
+  return data.access_token
+}
+
+/**
+ * Token para leer insignias: el de la cuenta si hay una vinculada, y si no
+ * (o si quedo revocada) el de aplicacion. Las insignias no piden scopes, asi
+ * que cualquiera de los dos sirve para cualquier canal.
+ */
+async function badgeToken(stored: StoredAccount | null): Promise<string> {
+  if (stored) {
+    try {
+      return (await freshToken(stored)).accessToken
+    } catch {
+      /* revocado o sin refresh valido: seguimos con el de aplicacion */
+    }
+  }
+  return appToken()
+}
+
+async function helix(token: string, path: string): Promise<any> {
   const res = await fetch(`${HELIX}${path}`, {
     headers: {
-      Authorization: `Bearer ${account.accessToken}`,
+      Authorization: `Bearer ${token}`,
       'Client-Id': env('TWITCH_CLIENT_ID') ?? '',
     },
   })
@@ -239,7 +316,7 @@ export default async function handler(req: Request): Promise<Response> {
         expiresAt: Date.now() + tokens.expires_in * 1000,
       }
 
-      const me = await helix(partial, '/users')
+      const me = await helix(tokens.access_token, '/users')
       const user = me?.data?.[0]
       if (!user) return redirect('/#/?twitch=sin_usuario')
 
@@ -260,27 +337,43 @@ export default async function handler(req: Request): Promise<Response> {
     /* --- insignias reales del canal --- */
     if (action === 'badges') {
       const stored = await readAccount()
-      if (!stored) return json({ error: 'No hay cuenta vinculada.' }, 400)
+      const token = await badgeToken(stored)
 
-      const account = await freshToken(stored)
-      const channel = url.searchParams.get('broadcaster_id') || account.userId
+      // El canal puede venir por id (el `room-id` que el editor saca del chat)
+      // o por nombre. No tiene por que ser el de la cuenta vinculada: para ver
+      // las insignias de sub personalizadas de otro canal alcanza con su id.
+      let channel = (url.searchParams.get('broadcaster_id') ?? '').replace(/\D/g, '')
+      const login = (url.searchParams.get('login') ?? '').trim().toLowerCase()
+
+      if (!channel && login) {
+        const found = await helix(token, `/users?login=${encodeURIComponent(login)}`)
+        channel = found?.data?.[0]?.id ?? ''
+        if (!channel) return json({ error: `No encontre el canal "${login}" en Twitch.` }, 404)
+      }
+
+      if (!channel) channel = stored?.userId ?? ''
+      if (!channel) {
+        return json({ error: 'Decime de que canal traer las insignias.' }, 400)
+      }
 
       const [global_, channelBadges] = await Promise.all([
-        helix(account, '/chat/badges/global'),
-        helix(account, `/chat/badges?broadcaster_id=${encodeURIComponent(channel)}`),
+        helix(token, '/chat/badges/global'),
+        helix(token, `/chat/badges?broadcaster_id=${encodeURIComponent(channel)}`),
       ])
 
-      // Las del canal pisan a las globales: si tiene insignia de sub propia,
-      // esa es la que hay que mostrar.
+      // De las globales guardamos solo las utiles; las del canal van enteras y
+      // pisan a las globales, asi que si tiene insignia de sub propia, gana esa.
+      const globals = (global_?.data ?? []).filter((set: any) => GLOBAL_BADGES.has(set.set_id))
+
       const images: Record<string, string> = {}
-      for (const set of [...(global_?.data ?? []), ...(channelBadges?.data ?? [])]) {
+      for (const set of [...globals, ...(channelBadges?.data ?? [])]) {
         for (const version of set.versions ?? []) {
           const src = version.image_url_4x || version.image_url_2x || version.image_url_1x
           if (src) images[`${set.set_id}/${version.id}`] = src
         }
       }
 
-      return json({ images, count: Object.keys(images).length })
+      return json({ images, count: Object.keys(images).length, broadcasterId: channel })
     }
 
     /* --- desvincular --- */

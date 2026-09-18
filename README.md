@@ -138,10 +138,12 @@ Lo que llega por esta vía, verificado contra el chat en vivo:
 - **emotes de Twitch**, servidos desde su CDN pública (tampoco pide auth)
 - filtros: ocultar comandos (`!`) y ocultar usuarios (bots)
 
-Lo que **sí** necesitaría OAuth, y por eso no está:
+El **arte original de las insignias** (Helix `/chat/badges/*`) sí pasa por la
+API, pero con un **token de aplicación**, no de usuario: ver más abajo. Cuando
+no está disponible se cae a iconos vectoriales.
 
-- el arte original de las insignias (Helix `/chat/badges/*`); en su lugar se
-  dibujan con iconos vectoriales
+Lo que **sí** necesitaría OAuth de usuario, y por eso no está:
+
 - mandar mensajes al chat
 
 Las fotos de perfil de los usuarios quedaron **fuera de alcance a pedido**, no
@@ -151,20 +153,37 @@ hace un solo request por usuario.
 ### Vincular la cuenta de Twitch
 
 El editor tiene un botón **Conectar cuenta de Twitch** (flujo Authorization
-Code). Sirve para dos cosas concretas:
-
-- saber el canal sin escribirlo a mano
-- traer el **arte real de las insignias del canal** (subs por antigüedad, bits),
-  que la API sólo entrega con token de usuario
+Code). Sirve para una sola cosa: **saber el canal sin escribirlo a mano**. Es
+opcional.
 
 El `client_secret` y los tokens viven únicamente en la function y en Netlify
 Blobs. **Nunca llegan al navegador**: la API sólo devuelve el nombre de la
-cuenta vinculada. Se piden **cero scopes**, porque para identidad e insignias no
-hace falta ninguno.
+cuenta vinculada. Se piden **cero scopes**.
+
+### Insignias reales, incluidas las personalizadas
+
+El botón *Traer insignias reales del canal* trae el arte que Twitch sirve para
+el canal que se está leyendo: las **insignias de sub personalizadas**, las de
+bits, founder, mod, VIP. Las del canal pisan a las globales, y se respeta la
+versión exacta (`subscriber/9` no es el mismo dibujo que `subscriber/3`).
+
+**No hace falta vincular ninguna cuenta, ni que el canal sea propio.** El
+servidor pide las insignias con un **token de aplicación**
+(`client_credentials`): lo emite la app para sí misma con el client id y el
+secret, no representa a ningún usuario y sirve para cualquier canal. Alcanza con
+tener cargadas las dos variables de entorno.
+
+El id del canal sale **gratis del propio chat**: al entrar, Twitch manda un
+`ROOMSTATE` con el tag `room-id`, así que no hay una llamada extra para
+traducir el nombre a id. Si el chat todavía no está conectado, el servidor
+resuelve el nombre con `/users?login=`.
 
 Las insignias se guardan **dentro del preset**, así el overlay las dibuja sin
-depender de que la API esté disponible. Si ella agrega una insignia nueva, se
-toca *Actualizar insignias reales* y se guarda el preset.
+depender de que la API esté disponible. Si agrega una insignia nueva, se toca
+*Actualizar insignias reales* y se guarda el preset.
+
+Lo que **no** llega por acá: las insignias de 7TV, BTTV y FFZ, que viven en APIs
+de terceros (sus emotes tampoco se dibujan hoy).
 
 #### Puesta en marcha
 
@@ -174,7 +193,11 @@ toca *Actualizar insignias reales* y se guarda el preset.
 3. Cargar en Netlify las variables `TWITCH_CLIENT_ID` y `TWITCH_CLIENT_SECRET`.
 
 Sin esas variables el resto de la app funciona igual: el botón se reemplaza por
-un aviso y el canal se escribe a mano.
+un aviso, el canal se escribe a mano y las insignias se dibujan con los iconos
+vectoriales.
+
+El paso 2 es sólo para el botón de vincular. Las insignias no lo usan, pero la
+consola de Twitch exige cargar al menos una Redirect URL para registrar la app.
 
 ### Por qué el overlay no usa EventSub
 

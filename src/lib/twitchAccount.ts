@@ -44,12 +44,23 @@ export async function fetchTwitchStatus(): Promise<TwitchAccountState> {
   }
 }
 
-/** Arte real de las insignias del canal vinculado. */
-export async function fetchBadgeImages(
-  broadcasterId?: string,
-): Promise<{ images: Record<string, string> } | { error: string }> {
-  const query = broadcasterId ? `?broadcaster_id=${encodeURIComponent(broadcasterId)}` : ''
-  const data = await callApi(`/api/twitch/badges${query}`)
+/**
+ * Arte real de las insignias de un canal.
+ *
+ * No hace falta que la cuenta este vinculada ni que el canal sea propio: el
+ * servidor usa un token de aplicacion, que sirve para cualquier canal. Se puede
+ * pedir por id (el `room-id` que sale del chat, sin vuelta extra) o por nombre.
+ */
+export async function fetchBadgeImages(target: {
+  broadcasterId?: string | null
+  login?: string | null
+}): Promise<{ images: Record<string, string> } | { error: string }> {
+  const params = new URLSearchParams()
+  if (target.broadcasterId) params.set('broadcaster_id', target.broadcasterId)
+  else if (target.login) params.set('login', target.login)
+
+  const query = params.toString()
+  const data = await callApi(`/api/twitch/badges${query ? `?${query}` : ''}`)
 
   if (!data) return { error: 'No hay backend para pedir las insignias.' }
   if (data.error) return { error: String(data.error) }

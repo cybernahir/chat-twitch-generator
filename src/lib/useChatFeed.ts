@@ -54,6 +54,8 @@ export interface ChatFeed {
   twitchDetail?: string
   kickStatus: KickStatus
   kickDetail?: string
+  /** Id del canal de Twitch conectado, sacado del ROOMSTATE. */
+  twitchRoomId: string | null
 }
 
 /**
@@ -68,6 +70,7 @@ export function useChatFeed(config: ChatConfig, running = true): ChatFeed {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [twitchStatus, setTwitchStatus] = useState<TwitchStatus>('idle')
   const [twitchDetail, setTwitchDetail] = useState<string | undefined>()
+  const [twitchRoomId, setTwitchRoomId] = useState<string | null>(null)
   const [kickStatus, setKickStatus] = useState<KickStatus>('idle')
   const [kickDetail, setKickDetail] = useState<string | undefined>()
   const scriptIndex = useRef(0)
@@ -126,6 +129,9 @@ export function useChatFeed(config: ChatConfig, running = true): ChatFeed {
   /* ---------------------- chat real de Twitch ---------------------- */
 
   useEffect(() => {
+    // El id viejo es de otro canal: se descarta antes de reconectar.
+    setTwitchRoomId(null)
+
     if (!live || !running || !twitchChannel.trim()) {
       setTwitchStatus('idle')
       return
@@ -137,6 +143,7 @@ export function useChatFeed(config: ChatConfig, running = true): ChatFeed {
         setTwitchDetail(detail)
       },
       onMessage: accept,
+      onRoomId: setTwitchRoomId,
     })
   }, [live, running, twitchChannel, accept])
 
@@ -233,5 +240,5 @@ export function useChatFeed(config: ChatConfig, running = true): ChatFeed {
     return () => window.clearInterval(id)
   }, [fadeOutAfter])
 
-  return { messages, twitchStatus, twitchDetail, kickStatus, kickDetail }
+  return { messages, twitchStatus, twitchDetail, kickStatus, kickDetail, twitchRoomId }
 }
