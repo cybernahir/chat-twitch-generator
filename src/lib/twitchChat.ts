@@ -20,9 +20,29 @@ const BADGE_CDN = 'https://static-cdn.jtvnw.net/badges/v1'
 
 export type TwitchStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error'
 
+/**
+ * Lo que hay que sacar de pantalla cuando moderan el chat.
+ *
+ *  - message: borraron un mensaje suelto.
+ *  - user: banearon o dieron timeout, y se van todos los mensajes de esa persona.
+ *  - all: vaciaron el chat entero.
+ */
+export type ChatRemoval =
+  | { type: 'message'; id: string }
+  | { type: 'user'; userId?: string; login?: string }
+  | { type: 'all' }
+
 export interface TwitchChatHandlers {
   onMessage: (message: ChatMessage) => void
   onStatus: (status: TwitchStatus, detail?: string) => void
+  /**
+   * Moderacion: borrar un mensaje, los de una persona, o todos.
+   *
+   * El overlay tiene que reflejarlo. Si un mod borra algo porque no queria que
+   * se viera, dejarlo en pantalla —y en la transmision— es justo lo que se
+   * estaba tratando de evitar.
+   */
+  onRemove?: (removal: ChatRemoval) => void
   /**
    * Id numerico del canal, que Twitch manda en el ROOMSTATE al entrar.
    *
@@ -165,6 +185,7 @@ function toMessage(tags: Record<string, string>, prefix: string, text: string): 
     segments: segments.some((s) => s.type === 'emote') ? segments : undefined,
     rawBadges,
     platform: 'twitch',
+    userId: tags['user-id'] || undefined,
   }
 }
 
@@ -231,6 +252,25 @@ export function connectTwitchChat(channel: string, handlers: TwitchChatHandlers)
 
         const space = rest.indexOf(' ')
         const command = space < 0 ? rest : rest.slice(0, space)
+
+        // Borraron un mensaje suelto: el tag trae el id del mensaje.
+        if (command === 'CLEARMSG') {
+          const target = tags['target-msg-id']
+          if (target) handlers.onRemove?.({ type: 'message', id: target })
+          continue
+        }
+
+        // Baneo, timeout o /clear. Con target-user-id es contra una persona (y
+        // el login viene como texto del comando); sin eso, es el chat entero.
+        if (command === 'CLEARCHAT') {
+          const userId = tags['target-user-id']
+          const textAt = rest.indexOf(' :')
+          const login = textAt >= 0 ? rest.slice(textAt + 2).trim() : ''
+          handlers.onRemove?.(
+            userId || login ? { type: 'user', userId, login } : { type: 'all' },
+          )
+          continue
+        }
 
         // ROOMSTATE llega al entrar al canal y trae el id del canal adentro.
         if (command === 'ROOMSTATE') {

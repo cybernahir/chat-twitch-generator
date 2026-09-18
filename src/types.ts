@@ -39,6 +39,13 @@ export interface ChatMessage {
   rawBadges?: string[]
   /** De dónde vino. Los mensajes simulados no lo traen. */
   platform?: Platform
+  /**
+   * Id del usuario en su plataforma.
+   *
+   * Hace falta para los baneos: Twitch avisa a quién banearon por id, y el
+   * nombre visible puede no coincidir con el login.
+   */
+  userId?: string
 }
 
 export interface ChatConfig {

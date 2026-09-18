@@ -3,7 +3,7 @@ import { RANDOM_MESSAGES, RANDOM_USERS, TWITCH_COLORS } from '../defaults'
 import { connectKickChat } from './kickChat'
 import type { KickStatus } from './kickChat'
 import { connectTwitchChat } from './twitchChat'
-import type { TwitchStatus } from './twitchChat'
+import type { ChatRemoval, TwitchStatus } from './twitchChat'
 import type { BadgeId, ChatConfig, ChatMessage } from '../types'
 
 const BADGE_POOL: BadgeId[][] = [
@@ -126,6 +126,27 @@ export function useChatFeed(config: ChatConfig, running = true): ChatFeed {
     setMessages((prev) => [...prev, message].slice(-Math.max(1, cap)))
   }, [])
 
+  /**
+   * Moderacion: saca de pantalla lo que borraron en la plataforma.
+   *
+   * Solo toca los mensajes de la plataforma que aviso. Con las dos fuentes
+   * mezcladas, un /clear en Twitch no tiene por que llevarse el chat de Kick.
+   */
+  const removeFrom = useCallback((platform: 'twitch' | 'kick', removal: ChatRemoval) => {
+    setMessages((prev) => {
+      const kept = prev.filter((m) => {
+        if (m.platform !== platform) return true
+        if (removal.type === 'all') return false
+        if (removal.type === 'message') return m.id !== removal.id
+        // Baneo o timeout: por id, que es lo exacto. El login sirve de respaldo
+        // para los mensajes que ya estaban en pantalla sin id guardado.
+        if (removal.userId && m.userId) return m.userId !== removal.userId
+        return !removal.login || m.user.toLowerCase() !== removal.login.toLowerCase()
+      })
+      return kept.length === prev.length ? prev : kept
+    })
+  }, [])
+
   /* ---------------------- chat real de Twitch ---------------------- */
 
   useEffect(() => {
@@ -144,8 +165,9 @@ export function useChatFeed(config: ChatConfig, running = true): ChatFeed {
       },
       onMessage: accept,
       onRoomId: setTwitchRoomId,
+      onRemove: (removal) => removeFrom('twitch', removal),
     })
-  }, [live, running, twitchChannel, accept])
+  }, [live, running, twitchChannel, accept, removeFrom])
 
   /* ---------------------- chat real de Kick ---------------------- */
 

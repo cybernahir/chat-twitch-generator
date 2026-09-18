@@ -137,6 +137,7 @@ Lo que llega por esta vía, verificado contra el chat en vivo:
 - **insignias**: streamer, mod, VIP, sub, prime, turbo, staff
 - **emotes de Twitch**, servidos desde su CDN pública (tampoco pide auth)
 - filtros: ocultar comandos (`!`) y ocultar usuarios (bots)
+- **moderación**: lo que se borra en Twitch se borra en el overlay
 
 El **arte original de las insignias** (Helix `/chat/badges/*`) sí pasa por la
 API, pero con un **token de aplicación**, no de usuario: ver más abajo. Cuando
@@ -149,6 +150,28 @@ Lo que **sí** necesitaría OAuth de usuario, y por eso no está:
 Las fotos de perfil de los usuarios quedaron **fuera de alcance a pedido**, no
 por una limitación técnica. Ni se muestran ni se piden, así que el overlay no
 hace un solo request por usuario.
+
+### Moderación
+
+Si un mod borra algo, dejarlo en pantalla —y en la transmisión— es justo lo que
+se estaba tratando de evitar. Twitch avisa por el mismo IRC que ya leemos, así
+que no hace falta nada extra:
+
+| Acción | Lo que manda Twitch | Qué hace el overlay |
+| --- | --- | --- |
+| Borrar un mensaje | `CLEARMSG` con `target-msg-id` | saca ese mensaje |
+| Timeout o baneo | `CLEARCHAT` con `target-user-id` | saca todos los mensajes de esa persona |
+| `/clear` | `CLEARCHAT` sin target | vacía el chat |
+
+Los baneos se resuelven por **id de usuario**, no por nombre: Twitch avisa por
+id y el nombre visible no siempre coincide con el login. El nombre queda de
+respaldo.
+
+Con las dos plataformas mezcladas en una sola lista, el borrado sólo toca los
+mensajes de la que avisó: un `/clear` en Twitch no se lleva los de Kick.
+
+**En Kick todavía no está**: su Pusher manda eventos de borrado, pero no se
+verificaron contra el chat real, así que no se implementaron.
 
 ### Vincular la cuenta de Twitch
 
