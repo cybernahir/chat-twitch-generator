@@ -9,7 +9,48 @@ import {
 } from '@phosphor-icons/react'
 import type { Icon } from '@phosphor-icons/react'
 import { BADGE_MAP, badgeUrl } from '../lib/twitchChat'
-import type { BadgeId } from '../types'
+import { KICK_BADGE_MAP } from '../lib/kickChat'
+import type { BadgeId, Platform } from '../types'
+
+/**
+ * Prefijo de las insignias de Kick dentro del mapa de imagenes.
+ *
+ * Las dos plataformas usan claves "tipo/version" y `subscriber` existe en las
+ * dos, asi que sin separarlas la insignia de sub de un canal pisaria a la del
+ * otro cuando se muestran los dos chats juntos.
+ */
+export const KICK_PREFIX = 'kick:'
+
+/**
+ * Imagen de una insignia de Kick.
+ *
+ * Kick manda los meses que lleva suscripto, no cual de las insignias del canal
+ * corresponde: hay que buscar el tramo mas alto que no los pase. Alguien con 7
+ * meses lleva la de 6. El resto de las insignias no tiene tramos y entra
+ * directo por su clave.
+ */
+function kickBadgeSrc(images: Record<string, string>, raw: string): string | undefined {
+  const directo = images[KICK_PREFIX + raw]
+  if (directo) return directo
+
+  const [type, version] = raw.split('/')
+  if (type !== 'subscriber') return undefined
+
+  const meses = Number(version)
+  if (!Number.isFinite(meses)) return undefined
+
+  let mejor = 0
+  let src: string | undefined
+  for (const [key, value] of Object.entries(images)) {
+    if (!key.startsWith(KICK_PREFIX + 'subscriber/')) continue
+    const tramo = Number(key.slice((KICK_PREFIX + 'subscriber/').length))
+    if (Number.isFinite(tramo) && tramo <= meses && tramo >= mejor) {
+      mejor = tramo
+      src = value
+    }
+  }
+  return src
+}
 
 interface BadgeStyle {
   label: string
@@ -48,17 +89,21 @@ export function BadgeRow({
   rawBadges,
   images,
   size,
+  platform,
 }: {
   badges: BadgeId[]
   rawBadges?: string[]
   images?: Record<string, string>
   size: number
+  platform?: Platform
 }) {
+  const esKick = platform === 'kick'
+
   if (rawBadges?.length) {
     return (
       <>
         {rawBadges.map((raw) => {
-          const src = images?.[raw]
+          const src = esKick ? kickBadgeSrc(images ?? {}, raw) : images?.[raw]
           if (src) {
             return (
               <img
@@ -70,7 +115,8 @@ export function BadgeRow({
               />
             )
           }
-          const mapped = BADGE_MAP[raw.split('/')[0]]
+          const tipo = raw.split('/')[0]
+          const mapped = esKick ? KICK_BADGE_MAP[tipo] : BADGE_MAP[tipo]
           return mapped ? <Badge key={raw} id={mapped} size={size} /> : null
         })}
       </>

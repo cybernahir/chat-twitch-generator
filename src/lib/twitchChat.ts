@@ -1,5 +1,5 @@
 import { TWITCH_COLORS } from '../defaults'
-import type { BadgeId, ChatMessage, MessageSegment } from '../types'
+import type { BadgeId, ChatMessage, ChatRemoval, MessageSegment } from '../types'
 
 /**
  * Lector del chat real de Twitch.
@@ -19,18 +19,6 @@ const EMOTE_CDN = 'https://static-cdn.jtvnw.net/emoticons/v2'
 const BADGE_CDN = 'https://static-cdn.jtvnw.net/badges/v1'
 
 export type TwitchStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error'
-
-/**
- * Lo que hay que sacar de pantalla cuando moderan el chat.
- *
- *  - message: borraron un mensaje suelto.
- *  - user: banearon o dieron timeout, y se van todos los mensajes de esa persona.
- *  - all: vaciaron el chat entero.
- */
-export type ChatRemoval =
-  | { type: 'message'; id: string }
-  | { type: 'user'; userId?: string; login?: string }
-  | { type: 'all' }
 
 export interface TwitchChatHandlers {
   onMessage: (message: ChatMessage) => void

@@ -3,8 +3,8 @@ import { RANDOM_MESSAGES, RANDOM_USERS, TWITCH_COLORS } from '../defaults'
 import { connectKickChat } from './kickChat'
 import type { KickStatus } from './kickChat'
 import { connectTwitchChat } from './twitchChat'
-import type { ChatRemoval, TwitchStatus } from './twitchChat'
-import type { BadgeId, ChatConfig, ChatMessage } from '../types'
+import type { TwitchStatus } from './twitchChat'
+import type { BadgeId, ChatConfig, ChatMessage, ChatRemoval } from '../types'
 
 const BADGE_POOL: BadgeId[][] = [
   [], [], [], [], [],
@@ -183,8 +183,9 @@ export function useChatFeed(config: ChatConfig, running = true): ChatFeed {
         setKickDetail(detail)
       },
       onMessage: accept,
+      onRemove: (removal) => removeFrom('kick', removal),
     })
-  }, [live, running, kickChatroomId, accept])
+  }, [live, running, kickChatroomId, accept, removeFrom])
 
   /* ---------------------- simulacion ---------------------- */
 

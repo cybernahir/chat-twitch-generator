@@ -142,6 +142,7 @@ export default function ChatOverlay({ config, messages }: Props) {
                       rawBadges={m.rawBadges}
                       images={c.badgeImages}
                       size={c.badgeSize}
+                      platform={m.platform}
                     />
                   )}
                   <span

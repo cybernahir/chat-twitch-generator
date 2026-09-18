@@ -170,8 +170,20 @@ respaldo.
 Con las dos plataformas mezcladas en una sola lista, el borrado sólo toca los
 mensajes de la que avisó: un `/clear` en Twitch no se lleva los de Kick.
 
-**En Kick todavía no está**: su Pusher manda eventos de borrado, pero no se
-verificaron contra el chat real, así que no se implementaron.
+En **Kick** funciona igual, por el mismo canal de Pusher que ya trae los
+mensajes:
+
+| Acción | Lo que manda Kick | Qué hace el overlay |
+| --- | --- | --- |
+| Borrar un mensaje | `MessageDeletedEvent` con `message.id` | saca ese mensaje |
+| Timeout o baneo | `UserBannedEvent` con `user.id` | saca todos los mensajes de esa persona |
+| Vaciar el chat | `ChatroomClearEvent` | vacía el chat |
+
+Ojo con un detalle de Kick: el `id` de primer nivel de `MessageDeletedEvent` es
+el del **evento**, no el del mensaje. El que sirve está en `message.id`.
+
+Buena parte de los borrados de Kick los hace su moderación automática
+(`aiModerated: true`), no una persona.
 
 ### Vincular la cuenta de Twitch
 
@@ -215,6 +227,23 @@ viejos guardaron la URL entera y se siguen leyendo igual.
 
 Lo que **no** llega por acá: las insignias de 7TV, BTTV y FFZ, que viven en APIs
 de terceros (sus emotes tampoco se dibujan hoy).
+
+#### Las de Kick
+
+Kick también tiene insignias de sub propias del canal, y vienen en el **mismo
+endpoint** que ya se usa para traducir el canal a id de sala, así que no hace
+falta ninguna API nueva ni credenciales: se traen al tocar *Buscar la sala de
+chat* y quedan guardadas en el preset.
+
+La diferencia está en cómo se elige cuál mostrar. Twitch manda la versión exacta
+(`subscriber/9`); Kick manda **los meses** que lleva suscripta la persona y hay
+que buscar el tramo más alto que no los pase: con 16 meses corresponde la
+insignia de 12. Por eso esa resolución vive en el overlay (`Badge.tsx`) y no en
+el cliente de chat.
+
+Se guardan en el mismo mapa que las de Twitch pero con prefijo `kick:`. Sin eso,
+mostrando los dos chats a la vez, la insignia de sub de un canal pisaría a la
+del otro: las dos se llaman `subscriber`.
 
 #### Puesta en marcha
 

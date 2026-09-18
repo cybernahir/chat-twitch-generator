@@ -64,16 +64,25 @@ export default async function handler(req: Request): Promise<Response> {
       user?: { username?: string }
       chatroom?: { id?: number }
       livestream?: unknown
+      subscriber_badges?: { months?: number; badge_image?: { src?: string } }[]
     }
 
     const chatroomId = data?.chatroom?.id
     if (!chatroomId) return json({ error: 'Ese canal no expone sala de chat.' }, 404)
+
+    // Insignias de sub propias del canal, por antiguedad. Kick las da en el
+    // mismo endpoint, asi que no cuesta nada traerlas de paso.
+    const subscriberBadges = (data.subscriber_badges ?? [])
+      .map((b) => ({ months: Number(b.months) || 0, src: b.badge_image?.src ?? '' }))
+      .filter((b) => b.months > 0 && b.src)
+      .sort((a, b) => a.months - b.months)
 
     return json({
       slug: data.slug ?? slug,
       displayName: data.user?.username ?? data.slug ?? slug,
       chatroomId: String(chatroomId),
       live: Boolean(data.livestream),
+      subscriberBadges,
     })
   } catch (error) {
     console.error('[kick]', error)

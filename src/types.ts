@@ -48,6 +48,18 @@ export interface ChatMessage {
   userId?: string
 }
 
+/**
+ * Lo que hay que sacar de pantalla cuando moderan el chat.
+ *
+ *  - message: borraron un mensaje suelto.
+ *  - user: banearon o dieron timeout, y se van todos los mensajes de esa persona.
+ *  - all: vaciaron el chat entero.
+ */
+export type ChatRemoval =
+  | { type: 'message'; id: string }
+  | { type: 'user'; userId?: string; login?: string }
+  | { type: 'all' }
+
 export interface ChatConfig {
   v: 1
 

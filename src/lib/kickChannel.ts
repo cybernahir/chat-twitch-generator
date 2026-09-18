@@ -11,6 +11,8 @@ export interface KickChannelInfo {
   displayName: string
   chatroomId: string
   live: boolean
+  /** Insignias de sub propias del canal, de menor a mayor antiguedad. */
+  subscriberBadges?: { months: number; src: string }[]
 }
 
 export interface KickChannelError {

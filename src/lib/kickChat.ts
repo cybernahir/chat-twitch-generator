@@ -1,4 +1,4 @@
-import type { BadgeId, ChatMessage, MessageSegment } from '../types'
+import type { BadgeId, ChatMessage, ChatRemoval, MessageSegment } from '../types'
 
 /**
  * Lector del chat real de Kick.
@@ -28,10 +28,15 @@ export type KickStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 
 export interface KickChatHandlers {
   onMessage: (message: ChatMessage) => void
   onStatus: (status: KickStatus, detail?: string) => void
+  /**
+   * Moderacion. Kick manda estos eventos por el mismo canal de Pusher que los
+   * mensajes, asi que no hay que suscribirse a nada mas.
+   */
+  onRemove?: (removal: ChatRemoval) => void
 }
 
 /** Insignias de Kick traducidas a las que sabemos dibujar. */
-const BADGE_MAP: Record<string, BadgeId> = {
+export const KICK_BADGE_MAP: Record<string, BadgeId> = {
   broadcaster: 'broadcaster',
   moderator: 'mod',
   vip: 'vip',
@@ -50,6 +55,14 @@ export function kickEmoteUrl(id: string): string {
 
 interface KickBadge {
   type?: string
+  /**
+   * Para el sub, los meses que lleva suscripto.
+   *
+   * Kick no manda cual de las insignias del canal corresponde, como hace
+   * Twitch con `subscriber/9`: manda los meses y hay que buscar el tramo mas
+   * alto que no los pase. Alguien con 7 meses lleva la de 6.
+   */
+  count?: number
 }
 
 interface KickPayload {
@@ -58,6 +71,7 @@ interface KickPayload {
   type?: string
   created_at?: string
   sender?: {
+    id?: number
     username?: string
     slug?: string
     identity?: {
@@ -100,10 +114,21 @@ function plainText(content: string): string {
 function parseBadges(badges: KickBadge[] | undefined): BadgeId[] {
   const out: BadgeId[] = []
   for (const badge of badges ?? []) {
-    const mapped = badge.type ? BADGE_MAP[badge.type] : undefined
+    const mapped = badge.type ? KICK_BADGE_MAP[badge.type] : undefined
     if (mapped && !out.includes(mapped)) out.push(mapped)
   }
   return out
+}
+
+/**
+ * Insignias crudas, en el mismo formato `tipo/version` que usa Twitch, para
+ * que el overlay las resuelva igual. En el sub la version son los meses.
+ */
+function rawBadges(badges: KickBadge[] | undefined): string[] | undefined {
+  const out = (badges ?? [])
+    .filter((b) => b.type)
+    .map((b) => `${b.type}/${b.count ?? 1}`)
+  return out.length ? out : undefined
 }
 
 function toMessage(payload: KickPayload): ChatMessage | null {
@@ -122,7 +147,9 @@ function toMessage(payload: KickPayload): ChatMessage | null {
     badges: parseBadges(payload.sender?.identity?.badges),
     createdAt: payload.created_at ? Date.parse(payload.created_at) || Date.now() : Date.now(),
     segments: segments.some((s) => s.type === 'emote') ? segments : undefined,
+    rawBadges: rawBadges(payload.sender?.identity?.badges),
     platform: 'kick',
+    userId: payload.sender?.id ? String(payload.sender.id) : undefined,
   }
 }
 
@@ -191,16 +218,47 @@ export function connectKickChat(chatroomId: string, handlers: KickChatHandlers):
         return
       }
 
-      if (!String(frame.event ?? '').includes('ChatMessageEvent')) return
+      const name = String(frame.event ?? '')
+      const esMensaje = name.includes('ChatMessageEvent')
+      const esModeracion =
+        name.includes('MessageDeletedEvent') ||
+        name.includes('UserBannedEvent') ||
+        name.includes('ChatroomClearEvent')
 
-      let payload: KickPayload
+      if (!esMensaje && !esModeracion) return
+
+      let payload: any
       try {
-        payload = typeof frame.data === 'string' ? JSON.parse(frame.data) : (frame.data as KickPayload)
+        payload = typeof frame.data === 'string' ? JSON.parse(frame.data) : frame.data
       } catch {
         return
       }
 
-      const message = toMessage(payload)
+      if (esModeracion) {
+        // Borraron un mensaje: viene el id del mensaje adentro de `message`.
+        // Ojo que el `id` de arriba es el del evento, no el del mensaje.
+        if (name.includes('MessageDeletedEvent')) {
+          const target = payload?.message?.id
+          if (target) handlers.onRemove?.({ type: 'message', id: String(target) })
+          return
+        }
+        // Baneo o timeout: se van todos los mensajes de esa persona.
+        if (name.includes('UserBannedEvent')) {
+          const user = payload?.user
+          if (user?.id || user?.slug) {
+            handlers.onRemove?.({
+              type: 'user',
+              userId: user?.id ? String(user.id) : undefined,
+              login: user?.slug || user?.username,
+            })
+          }
+          return
+        }
+        handlers.onRemove?.({ type: 'all' })
+        return
+      }
+
+      const message = toMessage(payload as KickPayload)
       if (message) handlers.onMessage(message)
     }
 

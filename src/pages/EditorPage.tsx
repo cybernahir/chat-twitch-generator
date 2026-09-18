@@ -19,6 +19,7 @@ import {
 import type { Icon } from '@phosphor-icons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ChatOverlay from '../components/ChatOverlay'
+import { KICK_PREFIX } from '../components/Badge'
 import CustomFontUploader from '../components/CustomFontUploader'
 import FontPicker from '../components/FontPicker'
 import ScriptEditor from '../components/ScriptEditor'
@@ -231,9 +232,24 @@ export default function EditorPage({ presetId, presets, mode, loading, onPresets
     if ('error' in result) {
       setKickNote(result.error)
     } else {
-      patch({ kickChannel: result.slug, kickChatroomId: result.chatroomId })
+      // De paso vienen las insignias de sub propias del canal. Se guardan en el
+      // mismo mapa que las de Twitch, con prefijo para que no se pisen.
+      const subs = result.subscriberBadges ?? []
+      const conKick = { ...(config.badgeImages ?? {}) }
+      for (const key of Object.keys(conKick)) {
+        if (key.startsWith(KICK_PREFIX)) delete conKick[key]
+      }
+      for (const badge of subs) conKick[`${KICK_PREFIX}subscriber/${badge.months}`] = badge.src
+
+      patch({
+        kickChannel: result.slug,
+        kickChatroomId: result.chatroomId,
+        badgeImages: Object.keys(conKick).length ? conKick : undefined,
+      })
+
+      const insignias = subs.length ? `, ${subs.length} insignias de sub propias` : ''
       setKickNote(
-        `Listo: ${result.displayName}, sala ${result.chatroomId}${result.live ? ', en vivo ahora' : ''}.`,
+        `Listo: ${result.displayName}, sala ${result.chatroomId}${result.live ? ', en vivo ahora' : ''}${insignias}.`,
       )
     }
 
