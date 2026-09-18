@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 
 /**
@@ -182,11 +183,20 @@ export function SegmentedControl<T extends string>({
   )
 }
 
+/**
+ * Campo numérico editable a mano.
+ *
+ * Mientras se escribe se guarda el texto tal cual (`draft`) en vez de empujar
+ * un número por cada tecla: si no, borrar el campo lo dejaba en el mínimo al
+ * instante y no había forma de cambiar 480 por 1280 sin pelearse con el input.
+ * El valor real se confirma al salir del campo o con Enter.
+ */
 export function NumberField({
   label,
   value,
   min,
   max,
+  step = 1,
   suffix,
   onChange,
 }: {
@@ -194,9 +204,22 @@ export function NumberField({
   value: number
   min: number
   max: number
+  step?: number
   suffix?: string
   onChange: (v: number) => void
 }) {
+  const [draft, setDraft] = useState<string | null>(null)
+
+  const commit = () => {
+    if (draft === null) return
+    const n = Number(draft.trim())
+    // Vacío o basura: vuelve al último valor válido, no al mínimo.
+    if (draft.trim() !== '' && Number.isFinite(n)) {
+      onChange(Math.min(max, Math.max(min, Math.round(n))))
+    }
+    setDraft(null)
+  }
+
   return (
     <label className="row">
       <span className="row-label">{label}</span>
@@ -205,8 +228,18 @@ export function NumberField({
           type="number"
           min={min}
           max={max}
-          value={value}
-          onChange={(e) => onChange(Math.min(max, Math.max(min, Number(e.target.value) || min)))}
+          step={step}
+          value={draft ?? String(value)}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              commit()
+            } else if (e.key === 'Escape') {
+              setDraft(null)
+            }
+          }}
         />
         {suffix && <span className="stepper-suffix">{suffix}</span>}
       </span>

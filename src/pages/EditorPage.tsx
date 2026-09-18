@@ -860,14 +860,29 @@ export default function EditorPage({ presetId, presets, mode, loading, onPresets
                   onChange={(v) => patch({ showBadges: v })}
                 />
                 {config.showBadges && (
-                  <Slider
-                    label="Tamaño de insignias"
-                    min={10}
-                    max={40}
-                    suffix=" px"
-                    value={config.badgeSize}
-                    onChange={(v) => patch({ badgeSize: v })}
-                  />
+                  <>
+                    <Slider
+                      label="Tamaño de insignias"
+                      min={8}
+                      max={120}
+                      suffix=" px"
+                      value={config.badgeSize}
+                      onChange={(v) => patch({ badgeSize: v })}
+                    />
+                    <NumberField
+                      label="Tamaño exacto"
+                      min={8}
+                      max={120}
+                      suffix="px"
+                      value={config.badgeSize}
+                      onChange={(v) => patch({ badgeSize: v })}
+                    />
+                    <small className="hint">
+                      Con el chat en perspectiva las insignias se achican de verdad, así que acá
+                      llegan hasta 120 px para compensar. El logo de plataforma usa el mismo
+                      tamaño.
+                    </small>
+                  </>
                 )}
               </Section>
             </>
