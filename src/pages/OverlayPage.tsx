@@ -79,8 +79,15 @@ export default function OverlayPage() {
         })
 
         if (res.status === 404) {
+          // Ese preset no existe y no va a aparecer solo: lo borraron o el
+          // link quedo viejo. Antes se seguia preguntando cada 15 segundos
+          // para siempre, y una fuente olvidada en OBS pegaba 240 veces por
+          // hora sin que nadie la mirara.
           if (!cancelled) setFailed(true)
-        } else if (res.ok) {
+          return
+        }
+
+        if (res.ok) {
           const data = (await res.json()) as {
             config?: Partial<ChatConfig>
             updatedAt?: number

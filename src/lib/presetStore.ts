@@ -48,10 +48,42 @@ function writeCache(presets: Preset[]): void {
 
 /* ------------------------------ API ------------------------------ */
 
-/** La sesión venció: recargamos para que el gate muestre el login de nuevo. */
+/** Marca de que ya se intentó recargar por una sesión rechazada. */
+const RETRY_KEY = 'chat-twitch-generator:reintento-sesion'
+
+/**
+ * La sesión venció: recargamos para que el gate muestre el login de nuevo.
+ *
+ * Pero **una sola vez**. El gate y esta API validan la misma cookie por
+ * separado —uno en el borde, la otra en una function—, y si por lo que sea no
+ * se ponen de acuerdo, el gate deja pasar, la API rechaza, recargamos, el gate
+ * vuelve a dejar pasar… y la pantalla queda pegándole a la API para siempre.
+ *
+ * Con el reintento gastado se sigue de largo: el pedido devuelve `null` y los
+ * presets pasan a leerse de localStorage, que es molesto pero acotado.
+ */
 function handleExpiredSession(): never {
-  window.location.reload()
+  let yaReintento = false
+  try {
+    yaReintento = sessionStorage.getItem(RETRY_KEY) === '1'
+    sessionStorage.setItem(RETRY_KEY, '1')
+  } catch {
+    // Sin sessionStorage no hay forma de acordarse, así que no se recarga:
+    // mejor quedarse en modo local que arriesgar el bucle.
+    yaReintento = true
+  }
+
+  if (!yaReintento) window.location.reload()
   throw new Error('sesión vencida')
+}
+
+/** Con la sesión andando otra vez, se devuelve el reintento. */
+function clearExpiredSessionRetry(): void {
+  try {
+    sessionStorage.removeItem(RETRY_KEY)
+  } catch {
+    /* sin sessionStorage no hay nada que limpiar */
+  }
 }
 
 async function callApi(init: RequestInit & { search?: string } = {}): Promise<Preset[] | null> {
@@ -62,6 +94,7 @@ async function callApi(init: RequestInit & { search?: string } = {}): Promise<Pr
     if (res.status === 401) handleExpiredSession()
     if (!res.ok) return null
 
+    clearExpiredSessionRetry()
     const data = (await res.json()) as { presets?: Preset[] }
     return Array.isArray(data.presets) ? data.presets : null
   } catch {
