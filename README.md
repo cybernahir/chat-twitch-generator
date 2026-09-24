@@ -157,6 +157,22 @@ los tags (`reply-parent-display-name`, `reply-parent-msg-body`), escapado como
 cualquier tag de IRCv3; Kick lo pone en `metadata.original_message`. Así la
 respuesta se entiende aunque el original ya se haya ido de pantalla.
 
+### Sobrevive a un F5
+
+El chat se guarda en el navegador, así que recargar sin querer no se lo lleva
+puesto. Se restaura al abrir y sigue desde ahí.
+
+- Se guarda cada 5 segundos, y además justo antes de irse (`pagehide`), que es
+  lo que cubre el caso real: recargar o cerrar. Escribir en cada mensaje sería
+  una escritura a disco por mensaje durante horas.
+- Se conservan los últimos 300, con el tachado y las respuestas incluidos.
+- **Lo de más de 8 horas no vuelve.** Sin ese corte, abrir la pantalla a la
+  mañana mostraría el chat de anoche arriba de todo y parecería que hay gente
+  hablando.
+
+Vive en `localStorage`, o sea en ese navegador y nada más. Si está lleno o
+bloqueado (navegación privada), el chat anda igual, sin memoria.
+
 ### Mensajes moderados
 
 Acá los mensajes borrados **no desaparecen**: quedan tachados y en gris, con un
@@ -596,6 +612,7 @@ src/
     fontStore.ts             IndexedDB + @font-face para las fuentes propias
     useHashRoute.ts          router mínimo de dos pantallas
     useChatFeed.ts           motor de mensajes simulados
+    chatHistory.ts           historial de /chat en el navegador
   components/
     ChatOverlay.tsx          el render del chat (preview, miniaturas y OBS)
     ChatList.tsx             la lista de la pantalla de lectura

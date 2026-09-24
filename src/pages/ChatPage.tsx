@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ChatList from '../components/ChatList'
 import { DEFAULT_CONFIG } from '../defaults'
+import { loadHistory, saveHistory } from '../lib/chatHistory'
 import { useChatFeed } from '../lib/useChatFeed'
-import type { ChatConfig } from '../types'
+import type { ChatConfig, ChatMessage } from '../types'
 import '../styles/chat.css'
 
 /**
@@ -113,6 +114,49 @@ export default function ChatPage() {
     keepDeleted: true,
   })
 
+  /* ---------------------- historial ---------------------- */
+
+  // Lo que había antes de recargar. Se lee una sola vez, al montar.
+  const [previos] = useState<ChatMessage[]>(() => loadHistory())
+
+  /**
+   * Lo de antes y lo que va llegando, en una sola lista.
+   *
+   * Ni Twitch ni Kick reenvían lo ya dicho al conectarse, así que no hay
+   * solapamiento real; el descarte por id está igual por las dudas, para el
+   * caso de recargar dos veces seguidas muy rápido.
+   */
+  const visibles = useMemo(() => {
+    if (!previos.length) return messages
+    const vistos = new Set(messages.map((m) => m.id))
+    return [...previos.filter((m) => !vistos.has(m.id)), ...messages].slice(-HISTORY)
+  }, [previos, messages])
+
+  /**
+   * Guardado espaciado.
+   *
+   * Escribir en cada mensaje sería una escritura a disco por mensaje durante
+   * horas. Con un intervalo alcanza, porque el caso que importa —recargar o
+   * cerrar— lo cubre `pagehide`, que corre justo antes de irse.
+   */
+  const pendiente = useRef<ChatMessage[] | null>(null)
+  pendiente.current = visibles
+
+  useEffect(() => {
+    const guardar = () => {
+      if (pendiente.current) saveHistory(pendiente.current)
+    }
+
+    const id = window.setInterval(guardar, 5000)
+    window.addEventListener('pagehide', guardar)
+
+    return () => {
+      window.clearInterval(id)
+      window.removeEventListener('pagehide', guardar)
+      guardar()
+    }
+  }, [])
+
   /* ---------------------- seguir el fondo ---------------------- */
 
   const listRef = useRef<HTMLDivElement>(null)
@@ -124,7 +168,7 @@ export default function ChatPage() {
     if (!pinned) return
     const el = listRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [messages, pinned])
+  }, [visibles, pinned])
 
   const onScroll = useCallback(() => {
     const el = listRef.current
@@ -199,13 +243,13 @@ export default function ChatPage() {
       </header>
 
       <div className="cr-list" ref={listRef} onScroll={onScroll} style={{ fontSize: size }}>
-        {messages.length === 0 && (
+        {visibles.length === 0 && (
           <p className="cr-note">
             {ninguna ? 'Conectando con el chat…' : 'Conectado. Esperando el primer mensaje…'}
           </p>
         )}
 
-        <ChatList messages={messages} badgeImages={badgeImages} size={size} showPlatform />
+        <ChatList messages={visibles} badgeImages={badgeImages} size={size} showPlatform />
       </div>
 
       {!pinned && (
