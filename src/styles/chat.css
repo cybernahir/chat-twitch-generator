@@ -336,3 +336,44 @@
   font-weight: 600;
   color: var(--cr-danger-soft);
 }
+
+/* ---------------- Limpiar la pantalla ---------------- */
+
+/* Discreto a propósito: es una acción que se usa cada tanto y no tiene que
+   competir con el chat. Sin rojo tampoco, porque no borra nada de Twitch ni
+   de Kick: sólo vacía esta pantalla, y se deshace sola con los mensajes que
+   siguen llegando. */
+.cr-clear {
+  flex: 0 0 auto;
+  /* Entra el texto más largo ("¿Seguro?") sin que el botón cambie de ancho al
+     pedir confirmación y empuje los controles de al lado. */
+  min-width: 84px;
+  padding: 6px 11px;
+  text-align: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--cr-bg);
+  color: var(--cr-ink-faint);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.cr-clear:hover:not(:disabled) {
+  border-color: var(--cr-line);
+  color: var(--cr-ink-soft);
+}
+
+/* Pidiendo confirmación: un poco más presente, nada más. */
+.cr-clear.is-asking {
+  border-color: var(--cr-line);
+  color: var(--cr-ink);
+}
+
+.cr-clear:disabled {
+  opacity: 0.3;
+  cursor: default;
+}

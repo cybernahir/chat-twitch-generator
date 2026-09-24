@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ChatList from '../components/ChatList'
 import { DEFAULT_CONFIG } from '../defaults'
-import { HISTORY_MAX, loadHistory, saveHistory } from '../lib/chatHistory'
+import { HISTORY_MAX, clearHistory, loadHistory, saveHistory } from '../lib/chatHistory'
 import { useChatFeed } from '../lib/useChatFeed'
 import type { ChatConfig, ChatMessage } from '../types'
 import '../styles/chat.css'
@@ -107,14 +107,14 @@ export default function ChatPage() {
 
   // `keepDeleted`: acá los mensajes moderados se tachan en vez de irse. El
   // overlay hace lo contrario, y tiene que seguir haciéndolo.
-  const { messages, twitchStatus, kickStatus } = useChatFeed(config, true, {
+  const { messages, clear, twitchStatus, kickStatus } = useChatFeed(config, true, {
     keepDeleted: true,
   })
 
   /* ---------------------- historial ---------------------- */
 
   // Lo que había antes de recargar. Se lee una sola vez, al montar.
-  const [previos] = useState<ChatMessage[]>(() => loadHistory())
+  const [previos, setPrevios] = useState<ChatMessage[]>(() => loadHistory())
 
   /**
    * Lo de antes y lo que va llegando, en una sola lista.
@@ -153,6 +153,36 @@ export default function ChatPage() {
       guardar()
     }
   }, [])
+
+  /* ---------------------- limpiar ---------------------- */
+
+  /**
+   * Vacía **esta pantalla** y lo que tenía guardado. Nada más.
+   *
+   * No borra nada en Twitch ni en Kick —leyendo de forma anónima ni siquiera
+   * se podría— y no le cambia nada a quien esté mirando el stream. Los
+   * mensajes que lleguen después entran normalmente.
+   */
+  const [confirmando, setConfirmando] = useState(false)
+
+  // El pedido de confirmación se cae solo: si fue un toque sin querer, el
+  // botón vuelve a su lugar y no queda una pantalla esperando respuesta.
+  useEffect(() => {
+    if (!confirmando) return
+    const id = window.setTimeout(() => setConfirmando(false), 3000)
+    return () => window.clearTimeout(id)
+  }, [confirmando])
+
+  const limpiar = () => {
+    if (!confirmando) {
+      setConfirmando(true)
+      return
+    }
+    setConfirmando(false)
+    setPrevios([])
+    clear()
+    clearHistory()
+  }
 
   /* ---------------------- seguir el fondo ---------------------- */
 
@@ -237,6 +267,16 @@ export default function ChatPage() {
             A+
           </button>
         </div>
+
+        <button
+          type="button"
+          className={`cr-clear ${confirmando ? 'is-asking' : ''}`}
+          onClick={limpiar}
+          disabled={visibles.length === 0}
+          title="Vacía sólo esta pantalla. No toca el chat de Twitch ni el de Kick."
+        >
+          {confirmando ? '¿Seguro?' : 'Limpiar'}
+        </button>
       </header>
 
       <div className="cr-list" ref={listRef} onScroll={onScroll} style={{ fontSize: size }}>

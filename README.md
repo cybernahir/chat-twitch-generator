@@ -173,6 +173,18 @@ puesto. Se restaura al abrir y sigue desde ahí.
 Vive en `localStorage`, o sea en ese navegador y nada más. Si está lleno o
 bloqueado (navegación privada), el chat anda igual, sin memoria.
 
+### Limpiar
+
+El botón **Limpiar** del encabezado vacía **sólo esta pantalla** y lo que tenía
+guardado. No borra nada en Twitch ni en Kick —leyendo de forma anónima ni
+siquiera se podría— y no le cambia nada a quien mire el stream. Los mensajes
+que lleguen después entran normalmente.
+
+Pide confirmación en el mismo botón (pasa a decir *¿Seguro?* y se arrepiente
+solo a los 3 segundos) porque un toque sin querer se llevaría el historial
+entero. Va en gris, apagado contra el fondo: es una acción de cada tanto y no
+tiene por qué competir con el chat.
+
 ### Mensajes moderados
 
 Acá los mensajes borrados **no desaparecen**: quedan tachados y en gris, con un

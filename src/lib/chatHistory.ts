@@ -51,6 +51,15 @@ export function loadHistory(now = Date.now()): ChatMessage[] {
   }
 }
 
+/** Tira lo guardado. Sólo toca este navegador. */
+export function clearHistory(): void {
+  try {
+    localStorage.removeItem(KEY)
+  } catch {
+    /* sin acceso al almacenamiento no hay nada que tirar */
+  }
+}
+
 export function saveHistory(messages: ChatMessage[]): void {
   const recortado = messages.slice(-HISTORY_MAX)
 

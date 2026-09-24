@@ -50,6 +50,14 @@ function parseBlocked(raw: string): string[] {
 
 export interface ChatFeed {
   messages: ChatMessage[]
+  /**
+   * Vacía la lista en pantalla.
+   *
+   * Sólo eso: no borra nada en Twitch ni en Kick, que además no se puede
+   * hacer leyendo de forma anónima. Los mensajes que lleguen después entran
+   * normalmente.
+   */
+  clear: () => void
   twitchStatus: TwitchStatus
   twitchDetail?: string
   kickStatus: KickStatus
@@ -307,5 +315,7 @@ export function useChatFeed(
     return () => window.clearInterval(id)
   }, [fadeOutAfter])
 
-  return { messages, twitchStatus, twitchDetail, kickStatus, kickDetail, twitchRoomId }
+  const clear = useCallback(() => setMessages([]), [])
+
+  return { messages, clear, twitchStatus, twitchDetail, kickStatus, kickDetail, twitchRoomId }
 }
