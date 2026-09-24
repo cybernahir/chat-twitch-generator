@@ -13,8 +13,15 @@ import type { ChatMessage } from '../types'
 
 const KEY = 'chat-reader:history'
 
-/** Tope de mensajes guardados. El mismo que muestra la pantalla. */
-const MAX = 300
+/**
+ * Tope de mensajes, guardados y en pantalla.
+ *
+ * Medido en el navegador con mensajes con emotes, insignias y respuestas:
+ * mil ocupan ~1,3 MB (de los ~5 MB que da `localStorage`), tardan ~4 ms en
+ * guardarse y ~3,5 ms en dibujar cada mensaje nuevo. Con 300 alcanzaba para
+ * unos pocos minutos de un chat movido, que es poco para poder subir a releer.
+ */
+export const HISTORY_MAX = 1000
 
 /**
  * Antigüedad máxima de lo que se restaura.
@@ -36,7 +43,7 @@ export function loadHistory(now = Date.now()): ChatMessage[] {
     return (parsed as ChatMessage[])
       .filter((m) => m && typeof m.id === 'string' && typeof m.text === 'string')
       .filter((m) => now - (m.createdAt || 0) < MAX_AGE_MS)
-      .slice(-MAX)
+      .slice(-HISTORY_MAX)
   } catch {
     // Sin permiso para leer, o basura guardada por una versión anterior: se
     // arranca de cero, que es exactamente lo que pasaba antes de todo esto.
@@ -45,7 +52,7 @@ export function loadHistory(now = Date.now()): ChatMessage[] {
 }
 
 export function saveHistory(messages: ChatMessage[]): void {
-  const recortado = messages.slice(-MAX)
+  const recortado = messages.slice(-HISTORY_MAX)
 
   try {
     localStorage.setItem(KEY, JSON.stringify(recortado))
@@ -54,7 +61,7 @@ export function saveHistory(messages: ChatMessage[]): void {
     // emotes ocupa bastante. Se reintenta con la mitad antes de rendirse, así
     // se conserva algo en vez de nada.
     try {
-      localStorage.setItem(KEY, JSON.stringify(recortado.slice(-Math.floor(MAX / 3))))
+      localStorage.setItem(KEY, JSON.stringify(recortado.slice(-Math.floor(HISTORY_MAX / 3))))
     } catch {
       /* navegación privada o cupo agotado: el chat anda igual, sin memoria */
     }

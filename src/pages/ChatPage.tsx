@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ChatList from '../components/ChatList'
 import { DEFAULT_CONFIG } from '../defaults'
-import { loadHistory, saveHistory } from '../lib/chatHistory'
+import { HISTORY_MAX, loadHistory, saveHistory } from '../lib/chatHistory'
 import { useChatFeed } from '../lib/useChatFeed'
 import type { ChatConfig, ChatMessage } from '../types'
 import '../styles/chat.css'
@@ -29,9 +29,6 @@ const CANAL_KICK = 'cybernahir'
  * cada carga o se deja escrito. Con el canal fijo, escribirlo es lo simple.
  */
 const SALA_KICK = '80446367'
-
-/** Cuántos mensajes se guardan para poder subir a releer. */
-const HISTORY = 300
 
 const SIZE_KEY = 'chat-reader:size'
 const MIN_SIZE = 14
@@ -98,7 +95,7 @@ export default function ChatPage() {
     () => ({
       ...DEFAULT_CONFIG,
       source: 'live',
-      maxMessages: HISTORY,
+      maxMessages: HISTORY_MAX,
       fadeOutAfter: 0,
       twitchChannel: CANAL_TWITCH,
       kickChannel: CANAL_KICK,
@@ -129,7 +126,7 @@ export default function ChatPage() {
   const visibles = useMemo(() => {
     if (!previos.length) return messages
     const vistos = new Set(messages.map((m) => m.id))
-    return [...previos.filter((m) => !vistos.has(m.id)), ...messages].slice(-HISTORY)
+    return [...previos.filter((m) => !vistos.has(m.id)), ...messages].slice(-HISTORY_MAX)
   }, [previos, messages])
 
   /**

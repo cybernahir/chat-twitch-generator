@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { BadgeRow } from './Badge'
 import { PLATFORMS, platformLogo } from './ChatOverlay'
 import type { ChatMessage, Deletion } from '../types'
@@ -79,6 +80,84 @@ function Body({ message }: { message: ChatMessage }) {
   )
 }
 
+interface RowProps {
+  message: ChatMessage
+  badgeImages?: Record<string, string>
+  size: number
+  showPlatform?: boolean
+}
+
+/**
+ * Una fila del chat, memoizada.
+ *
+ * El `memo` no es de adorno: sin él, cada mensaje que entra vuelve a dibujar
+ * los 300 que ya estaban. Medido, eso costaba 33 ms por mensaje con la lista
+ * llena, y un chat movido deja de ir fluido. Los mensajes no se modifican una
+ * vez creados —moderar uno arma un objeto nuevo— así que comparar por
+ * referencia alcanza y el mensaje nuevo es lo único que se dibuja.
+ */
+const MessageRow = memo(function MessageRow({
+  message: m,
+  badgeImages,
+  size,
+  showPlatform,
+}: RowProps) {
+  const plataforma = m.platform && showPlatform ? PLATFORMS[m.platform] : null
+
+  return (
+    <article
+      className={['cr-msg', plataforma ? `is-${m.platform}` : '', m.deleted ? 'is-deleted' : '']
+        .filter(Boolean)
+        .join(' ')}
+    >
+      {/* El mensaje al que contesta, arriba y en chico: se entiende la
+          conversación sin tener que ir a buscar el original, que puede
+          haber quedado muy arriba o directamente fuera del historial. */}
+      {m.reply && (
+        <p className="cr-reply">
+          <span className="cr-reply-user">{m.reply.user}</span>
+          <span className="cr-reply-text">{m.reply.text}</span>
+        </p>
+      )}
+
+      <p className="cr-line">
+        {/* De dónde vino el mensaje. Va antes que las insignias, a la
+            misma altura, para que el renglón arranque siempre igual. */}
+        {plataforma && (
+          <img
+            className="cr-platform"
+            src={platformLogo(plataforma.slug, plataforma.color)}
+            alt={plataforma.label}
+            title={plataforma.label}
+            style={{ width: Math.round(size * 0.85), height: Math.round(size * 0.85) }}
+          />
+        )}
+
+        {m.badges.length > 0 || m.rawBadges?.length ? (
+          <span className="cr-badges">
+            <BadgeRow
+              badges={m.badges}
+              rawBadges={m.rawBadges}
+              images={badgeImages}
+              size={Math.round(size * 0.85)}
+              platform={m.platform}
+            />
+          </span>
+        ) : null}
+
+        <b className="cr-user" style={{ color: readableColor(m.color) }}>
+          {m.user}
+        </b>
+        <span className="cr-text">
+          <Body message={m} />
+        </span>
+      </p>
+
+      {m.deleted && <p className="cr-deleted">{avisoDeBorrado(m.deleted)}</p>}
+    </article>
+  )
+})
+
 interface Props {
   messages: ChatMessage[]
   /** Arte real de las insignias, si el preset lo trae guardado. */
@@ -97,67 +176,15 @@ interface Props {
 export default function ChatList({ messages, badgeImages, size, showPlatform }: Props) {
   return (
     <>
-      {messages.map((m) => {
-        const plataforma = m.platform && showPlatform ? PLATFORMS[m.platform] : null
-
-        return (
-        <article
+      {messages.map((m) => (
+        <MessageRow
           key={m.id}
-          className={[
-            'cr-msg',
-            m.platform && showPlatform ? `is-${m.platform}` : '',
-            m.deleted ? 'is-deleted' : '',
-          ]
-            .filter(Boolean)
-            .join(' ')}
-        >
-          {/* El mensaje al que contesta, arriba y en chico: se entiende la
-              conversación sin tener que ir a buscar el original, que puede
-              haber quedado muy arriba o directamente fuera del historial. */}
-          {m.reply && (
-            <p className="cr-reply">
-              <span className="cr-reply-user">{m.reply.user}</span>
-              <span className="cr-reply-text">{m.reply.text}</span>
-            </p>
-          )}
-
-          <p className="cr-line">
-            {/* De dónde vino el mensaje. Va antes que las insignias, a la
-                misma altura, para que el renglón arranque siempre igual. */}
-            {plataforma && (
-              <img
-                className="cr-platform"
-                src={platformLogo(plataforma.slug, plataforma.color)}
-                alt={plataforma.label}
-                title={plataforma.label}
-                style={{ width: Math.round(size * 0.85), height: Math.round(size * 0.85) }}
-              />
-            )}
-
-            {m.badges.length > 0 || m.rawBadges?.length ? (
-              <span className="cr-badges">
-                <BadgeRow
-                  badges={m.badges}
-                  rawBadges={m.rawBadges}
-                  images={badgeImages}
-                  size={Math.round(size * 0.85)}
-                  platform={m.platform}
-                />
-              </span>
-            ) : null}
-
-            <b className="cr-user" style={{ color: readableColor(m.color) }}>
-              {m.user}
-            </b>
-            <span className="cr-text">
-              <Body message={m} />
-            </span>
-          </p>
-
-          {m.deleted && <p className="cr-deleted">{avisoDeBorrado(m.deleted)}</p>}
-        </article>
-        )
-      })}
+          message={m}
+          badgeImages={badgeImages}
+          size={size}
+          showPlatform={showPlatform}
+        />
+      ))}
     </>
   )
 }
