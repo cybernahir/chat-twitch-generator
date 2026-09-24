@@ -12,13 +12,23 @@
 # ("/" y "/index.html"). /overlay.html queda fuera a proposito: OBS no puede
 # atravesar un formulario de login.
 
-# Alias comodo para la fuente de navegador.
+# Alias comodos: la fuente de navegador y la pantalla de lectura del chat.
 [[redirects]]
   from = "/overlay"
   to = "/overlay.html"
   status = 200
 
+[[redirects]]
+  from = "/chat"
+  to = "/chat.html"
+  status = 200
+
 [[headers]]
   for = "/overlay.html"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+
+[[headers]]
+  for = "/chat.html"
   [headers.values]
     X-Robots-Tag = "noindex, nofollow"

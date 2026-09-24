@@ -21,6 +21,9 @@ React + TypeScript + Vite, 100% estático (sin backend), listo para Netlify.
 - **Fuente propia**: el streamer sube su `.ttf` (también `.otf`, `.woff`, `.woff2`)
   y los mensajes pasan a usarla. También se puede pegar la URL de una fuente hosteada.
 - Genera el **link para OBS** con un clic.
+- **Pantalla para leer el chat** (`/chat`): aparte del overlay, una vista pensada
+  para seguir el chat en un monitor al costado, con las respuestas a la vista.
+  Ver [Pantalla para leer el chat](#pantalla-para-leer-el-chat-chat).
 
 ## Acceso privado (login)
 
@@ -48,11 +51,12 @@ En **Netlify → Site configuration → Environment variables**:
 
 ### Qué queda protegido y qué no
 
-`/` (el editor) queda detrás del login. **`/overlay.html` queda público a
-propósito**: OBS no puede completar un formulario, así que la fuente de navegador
-tiene que poder abrir la URL sin sesión. No hay nada sensible ahí — el overlay
-sólo muestra mensajes inventados y su configuración viaja en el hash, que ni
-siquiera llega al servidor.
+`/` (el editor) queda detrás del login. **`/overlay.html` y `/chat.html` quedan
+públicas a propósito**: OBS no puede completar un formulario, y la pantalla de
+lectura tiene que poder abrirse en cualquier monitor sin andar tipeando la
+contraseña. No hay nada sensible en ninguna de las dos: muestran el chat de un
+canal que ya es público. `/api/chat-badges` también es público, por el mismo
+motivo, y sólo sirve arte de insignias.
 
 Los archivos de `/assets/*` también son públicos, porque el overlay los necesita.
 Alguien que conozca esas URLs podría bajarse el bundle del editor y correrlo por
@@ -116,6 +120,93 @@ Kick tiene API oficial con OAuth 2.1, pero para leer chat entrega los eventos po
 **webhook**: Kick le pega a una URL nuestra. Eso obligaría a guardar los mensajes
 y que el overlay los consulte, que para un chat es demasiado lento. El WebSocket
 público llega instantáneo y sin cuenta.
+
+## Pantalla para leer el chat (`/chat`)
+
+Aparte del overlay que va en OBS, hay una pantalla pensada para **leer** el chat
+en un monitor al costado. Es otra cosa: el overlay tiene que quedar bien sobre
+la escena y desaparecer; esto tiene que aguantar horas de lectura.
+
+Trae su propio diseño —fondo oscuro parejo, texto grande, aire entre mensajes y
+tamaño de letra ajustable, que se recuerda en ese navegador— y lee **Twitch y
+Kick a la vez**, mezclados en una sola lista, con el logo de la plataforma al
+principio de cada mensaje para saber de dónde vino.
+
+Va como página aparte, igual que el overlay, así queda **fuera del login**: se
+abre en cualquier monitor sin tener que pasar por la contraseña.
+
+### El canal va fijo en el código
+
+No hay presets ni parámetros en la URL: se abre `/chat` y anda. Es una pantalla
+para un solo chat, y hacerla configurable sólo agregaba formas de que quedara
+mal apuntada.
+
+Los dos canales y la sala de Kick están escritos en `src/pages/ChatPage.tsx`.
+La sala de Kick va anotada a mano porque el navegador no puede traducir el
+nombre del canal a ese número (el endpoint de Kick no manda cabeceras CORS), y
+con el canal fijo no tiene sentido pasar por el servidor en cada carga.
+
+### Respuestas
+
+Cuando alguien contesta a otro mensaje, arriba se muestra el original citado,
+más chico y apagado.
+
+No hay que guardar historial ni cruzar nada: las dos plataformas mandan el
+mensaje original **adentro** del que contesta, texto incluido. Twitch lo pone en
+los tags (`reply-parent-display-name`, `reply-parent-msg-body`), escapado como
+cualquier tag de IRCv3; Kick lo pone en `metadata.original_message`. Así la
+respuesta se entiende aunque el original ya se haya ido de pantalla.
+
+### Mensajes moderados
+
+Acá los mensajes borrados **no desaparecen**: quedan tachados y en gris, con un
+cartelito debajo que dice qué pasó.
+
+Es lo contrario de lo que hace el overlay, y a propósito. En OBS un mensaje
+borrado tiene que irse —si un mod lo borró porque no quería que se viera,
+dejarlo en la transmisión es justo lo que se estaba evitando—. Pero esta
+pantalla la mira una sola persona, y enterarse de que algo se borró es parte de
+seguir el chat. Lo decide `keepDeleted` en `useChatFeed`, apagado por defecto.
+
+**Quién lo borró casi nunca se puede mostrar**, y no es por falta de ganas:
+
+- **Twitch no lo manda.** El `CLEARMSG` trae el id del mensaje y el nombre de
+  quien lo había escrito, pero no el del moderador. Para tenerlo hay que ir a
+  EventSub con un token de moderador, y esta pantalla es pública: no puede
+  llevar un token adentro.
+- **Kick sí lo manda en los baneos** (`banned_by` en el `UserBannedEvent`), así
+  que ahí sale "Usuario expulsado por Fulano". En los mensajes sueltos tampoco.
+
+Cuando no se sabe, el cartel dice "Mensaje borrado" a secas.
+
+### Insignias, sin login
+
+Las insignias reales del canal las trae `/api/chat-badges`, que es **público**.
+Hizo falta una function aparte: la del editor (`/api/twitch/badges`) exige
+sesión, y esta pantalla la abre alguien que no la tiene, así que desde ahí
+devolvía 401 y los mensajes salían sin las insignias del canal.
+
+Lo que expone es arte público —las mismas imágenes que ve cualquiera que entre
+al canal— y del lado de Twitch va con el **token de aplicación**, que no
+representa a ningún usuario. Trae las de las dos plataformas en un solo pedido y
+las cachea, porque las insignias de un canal casi nunca cambian.
+
+Si la llamada falla, el chat se lee igual: caen los iconos vectoriales de
+respaldo, que alcanzan para distinguir un mod de un sub.
+
+### Detalles que sólo importan acá
+
+- **Los colores oscuros se aclaran.** Twitch reparte colores fijos y algunos
+  —el azul puro, el bordó— sobre fondo oscuro no se leen. Se les sube la
+  luminosidad manteniendo el tono, así el nombre sigue siendo "el suyo".
+- **El scroll se queda quieto si subiste a releer.** Mientras estés abajo sigue
+  solo; si subís, los mensajes nuevos no te arrastran y aparece un botón para
+  volver.
+- **Cada mensaje lleva el logo de su plataforma**, más una barrita de color al
+  costado. La cabecera no repite el nombre del canal ni el de las plataformas:
+  ya lo dice cada mensaje.
+- **Una luz por plataforma.** Con las dos mezcladas, un "conectado" a secas
+  taparía que una se cayó y faltan la mitad de los mensajes.
 
 ## Chat real de Twitch
 
@@ -482,17 +573,20 @@ router del lado del cliente ni reglas de rewrite.
 
 ```
 index.html                   entrada de la app     -> protegida por el gate
-overlay.html                 entrada del overlay   -> pública, la consume OBS
+overlay.html                 fuente del chat       -> pública, la consume OBS
+chat.html                    pantalla de lectura   -> pública, para leer el chat
 
 netlify/
   shared/session.ts          firma y verificación de la cookie (gate + API)
   edge-functions/gate.ts     login, corre en el borde antes de servir el HTML
   functions/presets.mts      API de presets sobre Netlify Blobs
+  functions/chat-badges.mts  insignias del canal, publicas (para /chat)
 
 src/
   App.tsx                    rutas por hash: biblioteca o editor
   main.tsx                   monta la app
   overlay-main.tsx           monta el overlay
+  chat-main.tsx              monta la pantalla de lectura
   defaults.ts                config por defecto, pools de usuarios/mensajes
   fonts.ts                   catálogo de fuentes + carga perezosa de Google Fonts
   types.ts                   ChatConfig, Preset y compañía
@@ -504,6 +598,7 @@ src/
     useChatFeed.ts           motor de mensajes simulados
   components/
     ChatOverlay.tsx          el render del chat (preview, miniaturas y OBS)
+    ChatList.tsx             la lista de la pantalla de lectura
     Badge.tsx                insignias
     FontPicker.tsx           selector de fuentes con preview real
     CustomFontUploader.tsx   subida del .ttf
@@ -513,9 +608,11 @@ src/
     LibraryPage.tsx          biblioteca de presets con miniaturas en vivo
     EditorPage.tsx           panel de control
     OverlayPage.tsx          página transparente para OBS
+    ChatPage.tsx             pantalla para leer el chat
   styles/
     app.css                  UI de la app
     overlay.css              estilos del chat
+    chat.css                 estilos de la pantalla de lectura
 ```
 
 ## Nota

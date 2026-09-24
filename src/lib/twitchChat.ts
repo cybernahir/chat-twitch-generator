@@ -1,5 +1,5 @@
 import { TWITCH_COLORS } from '../defaults'
-import type { BadgeId, ChatMessage, ChatRemoval, MessageSegment } from '../types'
+import type { BadgeId, ChatMessage, ChatRemoval, MessageSegment, ReplyRef } from '../types'
 
 /**
  * Lector del chat real de Twitch.
@@ -153,6 +153,28 @@ export function buildSegments(text: string, emotesTag: string | undefined): Mess
   return segments
 }
 
+/**
+ * El mensaje al que este contesta, si es una respuesta.
+ *
+ * Twitch manda el original entero en los tags del mensaje que contesta, con
+ * texto y todo, asi que no hay que guardar historial ni cruzar nada: la
+ * respuesta se puede dibujar aunque el original ya no este en pantalla.
+ *
+ * El cuerpo viene escapado como cualquier tag de IRCv3 (los espacios son `\s`),
+ * y `parseTags` ya lo desescapa antes de llegar aca.
+ */
+function parseReply(tags: Record<string, string>): ReplyRef | undefined {
+  const user =
+    tags['reply-parent-display-name']?.trim() || tags['reply-parent-user-login']?.trim()
+  if (!user) return undefined
+
+  return {
+    id: tags['reply-parent-msg-id'] || undefined,
+    user,
+    text: tags['reply-parent-msg-body'] ?? '',
+  }
+}
+
 /** Convierte una linea PRIVMSG completa en un mensaje nuestro. */
 function toMessage(tags: Record<string, string>, prefix: string, text: string): ChatMessage {
   const login = prefix.slice(0, prefix.indexOf('!')) || 'usuario'
@@ -170,6 +192,7 @@ function toMessage(tags: Record<string, string>, prefix: string, text: string): 
     color: tags.color || fallbackColor(login),
     badges: parseBadges(tags.badges),
     createdAt: Number(tags['tmi-sent-ts']) || Date.now(),
+    reply: parseReply(tags),
     segments: segments.some((s) => s.type === 'emote') ? segments : undefined,
     rawBadges,
     platform: 'twitch',

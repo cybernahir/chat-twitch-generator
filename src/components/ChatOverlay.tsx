@@ -23,12 +23,12 @@ export function rgba(hex: string, opacityPct: number): string {
  * elegir el color por URL. Phosphor trae el de Twitch pero no el de Kick, y
  * mezclar dos fuentes los dejaria con distinto peso optico.
  */
-const PLATFORMS: Record<string, { label: string; color: string; slug: string }> = {
+export const PLATFORMS: Record<string, { label: string; color: string; slug: string }> = {
   twitch: { label: 'Twitch', color: '#9146FF', slug: 'twitch' },
   kick: { label: 'Kick', color: '#53FC18', slug: 'kick' },
 }
 
-function platformLogo(slug: string, color: string): string {
+export function platformLogo(slug: string, color: string): string {
   return `https://cdn.simpleicons.org/${slug}/${color.replace('#', '')}`
 }
 

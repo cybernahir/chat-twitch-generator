@@ -26,6 +26,20 @@ export type MessageSegment =
   | { type: 'text'; value: string }
   | { type: 'emote'; url: string; name: string }
 
+/**
+ * El mensaje al que este le contesta.
+ *
+ * No hay que ir a buscarlo a ningún lado: las dos plataformas mandan el
+ * original adentro del mensaje que contesta, texto incluido. Así se puede
+ * mostrar la respuesta aunque el original ya se haya ido de pantalla.
+ */
+export interface ReplyRef {
+  /** Id del mensaje original, cuando la plataforma lo da. */
+  id?: string
+  user: string
+  text: string
+}
+
 export interface ChatMessage {
   id: string
   user: string
@@ -33,6 +47,10 @@ export interface ChatMessage {
   color: string
   badges: BadgeId[]
   createdAt: number
+  /** Sólo cuando es una respuesta a otro mensaje. */
+  reply?: ReplyRef
+  /** Presente cuando lo moderaron y se eligió dejarlo tachado en vez de sacarlo. */
+  deleted?: Deletion
   /** Solo en mensajes reales que traen emotes. */
   segments?: MessageSegment[]
   /** Insignias crudas de Twitch (`subscriber/9`), para buscar su imagen real. */
@@ -56,9 +74,29 @@ export interface ChatMessage {
  *  - all: vaciaron el chat entero.
  */
 export type ChatRemoval =
-  | { type: 'message'; id: string }
-  | { type: 'user'; userId?: string; login?: string }
-  | { type: 'all' }
+  | { type: 'message'; id: string; by?: string }
+  | { type: 'user'; userId?: string; login?: string; by?: string }
+  | { type: 'all'; by?: string }
+
+/**
+ * Marca de que un mensaje fue moderado.
+ *
+ * La usa la pantalla de lectura, que en vez de sacarlos los deja tachados: si
+ * estás leyendo el chat querés enterarte de que algo se borró. El overlay no
+ * la usa —ahí los mensajes se van, que es todo el punto de moderar.
+ */
+export interface Deletion {
+  /**
+   * Quién lo borró.
+   *
+   * Viene vacío casi siempre: Twitch **no** dice qué moderador borró un
+   * mensaje por la conexión anónima (haría falta EventSub con un token de
+   * moderador). Kick sí lo manda en los baneos.
+   */
+  by?: string
+  /** Si se borró ese mensaje, se expulsó a la persona, o se vació el chat. */
+  scope: 'message' | 'user' | 'all'
+}
 
 export interface ChatConfig {
   v: 1

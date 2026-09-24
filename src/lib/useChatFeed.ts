@@ -4,7 +4,7 @@ import { connectKickChat } from './kickChat'
 import type { KickStatus } from './kickChat'
 import { connectTwitchChat } from './twitchChat'
 import type { TwitchStatus } from './twitchChat'
-import type { BadgeId, ChatConfig, ChatMessage, ChatRemoval } from '../types'
+import type { BadgeId, ChatConfig, ChatMessage, ChatRemoval, Platform } from '../types'
 
 const BADGE_POOL: BadgeId[][] = [
   [], [], [], [], [],
@@ -58,6 +58,16 @@ export interface ChatFeed {
   twitchRoomId: string | null
 }
 
+export interface ChatFeedOptions {
+  /**
+   * Dejar los mensajes moderados en la lista, marcados, en vez de sacarlos.
+   *
+   * Apagado por defecto: el overlay tiene que sacarlos. Lo prende la pantalla
+   * de lectura, donde tacharlos es mejor que hacerlos desaparecer sin aviso.
+   */
+  keepDeleted?: boolean
+}
+
 /**
  * Motor del chat. Sirve las tres fuentes: mensajes al azar, un guion propio o
  * el chat en vivo, que puede ser de Twitch, de Kick o de las dos a la vez
@@ -66,7 +76,11 @@ export interface ChatFeed {
  * La lista visible se recorta a `maxMessages` y opcionalmente se descarta lo
  * que pase de `fadeOutAfter` segundos.
  */
-export function useChatFeed(config: ChatConfig, running = true): ChatFeed {
+export function useChatFeed(
+  config: ChatConfig,
+  running = true,
+  { keepDeleted = false }: ChatFeedOptions = {},
+): ChatFeed {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [twitchStatus, setTwitchStatus] = useState<TwitchStatus>('idle')
   const [twitchDetail, setTwitchDetail] = useState<string | undefined>()
@@ -127,25 +141,55 @@ export function useChatFeed(config: ChatConfig, running = true): ChatFeed {
   }, [])
 
   /**
-   * Moderacion: saca de pantalla lo que borraron en la plataforma.
+   * ¿Este mensaje entra en lo que se borró?
+   *
+   * Se usa para las dos formas de reaccionar —sacarlo o tacharlo— así que la
+   * regla vive en un solo lugar.
+   */
+  const alcanzado = (m: ChatMessage, platform: Platform, removal: ChatRemoval): boolean => {
+    if (m.platform !== platform) return false
+    if (removal.type === 'all') return true
+    if (removal.type === 'message') return m.id === removal.id
+    // Baneo o timeout: por id, que es lo exacto. El login sirve de respaldo
+    // para los mensajes que ya estaban en pantalla sin id guardado.
+    if (removal.userId && m.userId) return m.userId === removal.userId
+    return Boolean(removal.login) && m.user.toLowerCase() === removal.login!.toLowerCase()
+  }
+
+  /**
+   * Moderacion: refleja lo que borraron en la plataforma.
    *
    * Solo toca los mensajes de la plataforma que aviso. Con las dos fuentes
    * mezcladas, un /clear en Twitch no tiene por que llevarse el chat de Kick.
+   *
+   * Que pasa despues depende de `keepDeleted`, y la diferencia importa:
+   *
+   *  - En el overlay se **sacan**. Si un mod borro algo porque no queria que se
+   *    viera, dejarlo en la transmision es justo lo que se estaba evitando.
+   *  - En la pantalla de lectura se **tachan**. Ahi no lo ve nadie mas que
+   *    quien lee, y enterarse de que algo se borro es parte de seguir el chat.
    */
-  const removeFrom = useCallback((platform: 'twitch' | 'kick', removal: ChatRemoval) => {
-    setMessages((prev) => {
-      const kept = prev.filter((m) => {
-        if (m.platform !== platform) return true
-        if (removal.type === 'all') return false
-        if (removal.type === 'message') return m.id !== removal.id
-        // Baneo o timeout: por id, que es lo exacto. El login sirve de respaldo
-        // para los mensajes que ya estaban en pantalla sin id guardado.
-        if (removal.userId && m.userId) return m.userId !== removal.userId
-        return !removal.login || m.user.toLowerCase() !== removal.login.toLowerCase()
+  const removeFrom = useCallback(
+    (platform: Platform, removal: ChatRemoval) => {
+      setMessages((prev) => {
+        if (!keepDeleted) {
+          const kept = prev.filter((m) => !alcanzado(m, platform, removal))
+          return kept.length === prev.length ? prev : kept
+        }
+
+        let cambio = false
+        const next = prev.map((m) => {
+          // Ya tachado: no se vuelve a marcar, asi no se pierde quien fue el
+          // primero en borrarlo.
+          if (m.deleted || !alcanzado(m, platform, removal)) return m
+          cambio = true
+          return { ...m, deleted: { by: removal.by, scope: removal.type } }
+        })
+        return cambio ? next : prev
       })
-      return kept.length === prev.length ? prev : kept
-    })
-  }, [])
+    },
+    [keepDeleted],
+  )
 
   /* ---------------------- chat real de Twitch ---------------------- */
 

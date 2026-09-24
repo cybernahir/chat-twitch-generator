@@ -79,6 +79,16 @@ interface KickPayload {
       badges?: KickBadge[]
     }
   }
+  /**
+   * Presente sólo cuando el mensaje contesta a otro.
+   *
+   * Kick manda el original adentro, igual que Twitch, pero en vez de tags va
+   * en este objeto y el `type` del mensaje pasa a ser `reply`.
+   */
+  metadata?: {
+    original_message?: { id?: string; content?: string }
+    original_sender?: { id?: number; username?: string }
+  }
 }
 
 /**
@@ -138,7 +148,14 @@ function toMessage(payload: KickPayload): ChatMessage | null {
   const user = payload.sender?.username?.trim() || payload.sender?.slug || 'usuario'
   const segments = buildKickSegments(content)
 
+  const original = payload.metadata?.original_message
+  const autor = payload.metadata?.original_sender?.username?.trim()
+
   return {
+    reply:
+      original && autor
+        ? { id: original.id, user: autor, text: plainText(original.content ?? '') }
+        : undefined,
     id: payload.id || `kick${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     user,
     text: plainText(content),
@@ -242,7 +259,8 @@ export function connectKickChat(chatroomId: string, handlers: KickChatHandlers):
           if (target) handlers.onRemove?.({ type: 'message', id: String(target) })
           return
         }
-        // Baneo o timeout: se van todos los mensajes de esa persona.
+        // Baneo o timeout: se van todos los mensajes de esa persona. A
+        // diferencia de Twitch, Kick sí dice quién lo hizo.
         if (name.includes('UserBannedEvent')) {
           const user = payload?.user
           if (user?.id || user?.slug) {
@@ -250,6 +268,7 @@ export function connectKickChat(chatroomId: string, handlers: KickChatHandlers):
               type: 'user',
               userId: user?.id ? String(user.id) : undefined,
               login: user?.slug || user?.username,
+              by: payload?.banned_by?.username || payload?.banned_by?.slug || undefined,
             })
           }
           return
