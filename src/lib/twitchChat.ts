@@ -279,6 +279,14 @@ function parseNotice(tags: Record<string, string>): Notice | null {
     return streams ? { kind: 'watch-streak', streams } : null
   }
 
+  // Raid. La cantidad de gente es opcional: es el unico de estos avisos que no
+  // pude ver en vivo ni una vez, asi que si `msg-param-viewerCount` no viene o
+  // se llama de otro modo, el aviso igual sale diciendo quien llego. Vale mas
+  // un aviso sin numero que ningun aviso.
+  if (tipo === 'raid') {
+    return { kind: 'raid', viewers: num(tags['msg-param-viewerCount']) }
+  }
+
   return null
 }
 
@@ -288,7 +296,14 @@ function toNotice(tags: Record<string, string>, text: string): ChatMessage | nul
   if (!notice) return null
 
   const login = tags.login ?? ''
-  const user = tags['display-name']?.trim() || login || 'usuario'
+  // En los raids el nombre de quien llega viene ademas en su propio tag. Se
+  // prueba primero, pero con los de siempre de respaldo: el USERNOTICE sale a
+  // nombre de quien raidea igual, asi que aunque ese tag no venga hay nombre.
+  const user =
+    tags['msg-param-displayName']?.trim() ||
+    tags['display-name']?.trim() ||
+    login ||
+    'usuario'
 
   const cuerpo = text.trim()
 

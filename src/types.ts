@@ -79,6 +79,16 @@ export type Notice =
    * viene junto con el mensaje que escribió en ese momento.
    */
   | { kind: 'watch-streak'; streams: number }
+  /**
+   * Otro canal mandó a su gente para acá.
+   *
+   * `user` es quien raidea. La cantidad de gente es opcional a propósito: es
+   * el único de estos avisos que no pude ver en vivo ni una vez —35 horas-canal
+   * de escucha sobre 60 canales y no cayó ninguna raid, mientras sí llegaban
+   * los otros seis tipos de evento—, así que se dibuja con lo que venga en vez
+   * de depender de un tag que no pude confirmar.
+   */
+  | { kind: 'raid'; viewers?: number }
 
 export interface ChatMessage {
   id: string

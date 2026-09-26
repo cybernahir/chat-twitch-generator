@@ -476,3 +476,28 @@
   font-weight: 700;
   color: #37d3a5;
 }
+
+/* Raid: otro canal acaba de mandar a toda su gente.
+ *
+ * Es el evento mas grande de los que mostramos, asi que lleva el fondo mas
+ * marcado. Cian y no ambar ni violeta: no es una racha ni una suscripcion,
+ * es gente llegando. */
+.cr-msg.is-raid {
+  background: rgba(79, 195, 247, 0.12);
+  box-shadow: inset 3px 0 0 #4fc3f7;
+}
+
+.cr-msg.is-raid:nth-child(even) {
+  background: rgba(79, 195, 247, 0.15);
+}
+
+.cr-notice-raid::before {
+  content: '·';
+  margin: 0 0.45em;
+  color: var(--cr-ink-faint);
+}
+
+.cr-notice-raid {
+  color: #4fc3f7;
+  font-weight: 700;
+}

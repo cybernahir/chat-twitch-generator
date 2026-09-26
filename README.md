@@ -211,6 +211,7 @@ persona eligió mostrarlas.
 | Sub nuevo | Sí | Sí | `se suscribió` |
 | Renovación | Sí | Sí | `renovó su sub · 15 meses · 9 meses seguidos` |
 | Racha de meses | Sí | — | la parte en ámbar de arriba |
+| Raid | Sí | — | `trajo · 143 personas`, en cian |
 | Sub regalado | — | — | todavía no |
 
 **Los subs de Kick llegan por el canal del chat**, el mismo al que ya estábamos
@@ -224,6 +225,30 @@ ni conocer el id del canal. El payload es todo lo que hay:
 
 Kick no distingue el sub nuevo de la renovación: lo dice la cantidad de meses.
 Y no tiene rachas, eso es cosa de Twitch.
+
+#### El raid es el único que no se pudo ver en vivo
+
+Todos los demás avisos se escribieron mirando eventos reales. El raid no: hubo
+unas 35 horas-canal de escucha sobre ~60 canales sin que cayera ninguno,
+mientras llegaban sin problema los otros seis tipos de evento.
+
+No quedó claro si es que no pasó —las raids llegan al canal que *recibe*, y los
+canales grandes reciben pocas— o si Twitch no se lo manda a los clientes
+anónimos.
+
+Por eso está escrito para aguantar la sorpresa: **la cantidad de gente es
+opcional**. Si `msg-param-viewerCount` no llega o cambia de nombre, el aviso
+igual sale diciendo quién llegó (`hizo un raid`) en vez de no salir. El nombre
+también tiene respaldo: se prueba `msg-param-displayName` y si no está se usa
+el `display-name` de siempre, porque el `USERNOTICE` sale a nombre de quien
+raidea igual.
+
+**Marcar los mensajes de los viewers que vienen con la raid** quedó pendiente.
+Twitch lo muestra en la vista de moderación, así que el dato existe, pero no se
+pudo comprobar si viaja hasta un cliente anónimo. Sin una raid real que mirar,
+las opciones son una heurística con falsos positivos (marcar a quien escriba
+por primera vez en los minutos siguientes) o el relay con token de moderador,
+que es el mismo trabajo que piden los follows.
 
 Las dos rachas comparten el mismo ámbar a propósito: "alguien mostró su racha"
 es una sola categoría para el ojo, y el texto dice cuál de las dos es.

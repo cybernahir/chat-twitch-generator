@@ -69,7 +69,22 @@ function avisoDeBorrado({ by, scope }: Deletion): string {
  * La racha va aparte y resaltada porque es lo que la persona *eligió* mostrar:
  * si está, es que quiso que se viera. Los meses acumulados son el contexto.
  */
-function AvisoDeSub({ notice }: { notice: Extract<Notice, { kind: 'sub' | 'resub' }> }) {
+function Aviso({ notice }: { notice: Exclude<Notice, { kind: 'watch-streak' }> }) {
+  // Una raid no trae mensaje, así que el aviso va en la línea del nombre:
+  // "elTano trajo 143 personas". Poner "elTano:" y nada al lado quedaba raro.
+  if (notice.kind === 'raid') {
+    return (
+      <span className="cr-notice-text">
+        {notice.viewers !== undefined ? 'trajo' : 'hizo un raid'}
+        {notice.viewers !== undefined && (
+          <span className="cr-notice-raid">
+            {notice.viewers} {notice.viewers === 1 ? 'persona' : 'personas'}
+          </span>
+        )}
+      </span>
+    )
+  }
+
   const meses = notice.months
   return (
     <span className="cr-notice-text">
@@ -137,6 +152,7 @@ const MessageRow = memo(function MessageRow({
         m.notice && 'streak' in m.notice && m.notice.streak !== undefined ? 'is-streak' : '',
         m.notice?.kind === 'watch-streak' ? 'is-watch-streak' : '',
         m.firstMessage ? 'is-first' : '',
+        m.notice?.kind === 'raid' ? 'is-raid' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -197,7 +213,7 @@ const MessageRow = memo(function MessageRow({
             es lo que la persona quiso decir y la racha lo acompaña— así que
             se dibuja como un mensaje normal. */}
         {m.notice && m.notice.kind !== 'watch-streak' ? (
-          <AvisoDeSub notice={m.notice} />
+          <Aviso notice={m.notice} />
         ) : (
           <span className="cr-text">
             <Body message={m} />
