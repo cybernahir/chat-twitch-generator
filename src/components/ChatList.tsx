@@ -136,6 +136,7 @@ const MessageRow = memo(function MessageRow({
         m.notice ? 'is-notice' : '',
         m.notice && 'streak' in m.notice && m.notice.streak !== undefined ? 'is-streak' : '',
         m.notice?.kind === 'watch-streak' ? 'is-watch-streak' : '',
+        m.firstMessage ? 'is-first' : '',
       ]
         .filter(Boolean)
         .join(' ')}
@@ -143,6 +144,10 @@ const MessageRow = memo(function MessageRow({
       {/* El mensaje al que contesta, arriba y en chico: se entiende la
           conversación sin tener que ir a buscar el original, que puede
           haber quedado muy arriba o directamente fuera del historial. */}
+      {/* Primera vez que escribe. Va arriba de todo, incluso de la cita: la
+          cita dice a qué contesta, esto dice quién es, y eso encabeza la fila. */}
+      {m.firstMessage && <p className="cr-first">Primer mensaje en el canal</p>}
+
       {m.reply && (
         <p className="cr-reply">
           <span className="cr-reply-user">{m.reply.user}</span>

@@ -100,6 +100,17 @@ export interface ChatMessage {
    * se dispara justo cuando escribe.
    */
   notice?: Notice
+  /**
+   * Es la primera vez que esta persona escribe en el canal.
+   *
+   * Lo marca Twitch en el propio mensaje, así que no hay que llevar registro
+   * de quién habló antes. Ojo con lo que significa: es la primera vez que
+   * **escribe**, no que aparezca por el canal. Se ven mensajes con esta marca
+   * de gente que ya está suscripta hace meses y recién hoy dice algo.
+   *
+   * Kick no manda nada equivalente.
+   */
+  firstMessage?: boolean
   /** Solo en mensajes reales que traen emotes. */
   segments?: MessageSegment[]
   /** Insignias crudas de Twitch (`subscriber/9`), para buscar su imagen real. */

@@ -173,6 +173,31 @@ puesto. Se restaura al abrir y sigue desde ahí.
 Vive en `localStorage`, o sea en ese navegador y nada más. Si está lleno o
 bloqueado (navegación privada), el chat anda igual, sin memoria.
 
+### Primer mensaje
+
+Cuando alguien escribe por primera vez en el canal, la fila sale marcada en
+verde con **Primer mensaje en el canal**, parecido al recuadro que muestra la
+vista de moderación de Twitch. Sirve para poder saludar a quien recién aparece.
+
+Lo marca Twitch en el propio mensaje (`first-msg`), así que no hay que llevar
+registro de quién habló antes ni guardar nada.
+
+Ojo con qué significa: es la primera vez que **escribe**, no que aparezca por
+el canal. Capturando tráfico real se ven mensajes con esta marca de gente que
+ya tiene insignia de suscriptor — estaba hace rato, pero recién hoy dijo algo.
+
+Verde y no ámbar a propósito: el ámbar es "alguien mostró su racha", esto es
+"alguien apareció por primera vez". Son cosas distintas y conviene poder
+distinguirlas de un vistazo.
+
+Frecuencia medida: 7 de cada 1539 mensajes, más o menos uno cada 220.
+
+Existe un segundo tag (`returning-chatter`, alguien que vuelve después de mucho)
+pero en la captura nunca valió más que cero, así que no se muestra: no se
+implementa a ciegas algo que no se pudo ver funcionando.
+
+Kick no manda ninguna marca equivalente.
+
 ### Rachas y suscripciones
 
 En la lista se intercalan los avisos que Twitch manda por `USERNOTICE`, el

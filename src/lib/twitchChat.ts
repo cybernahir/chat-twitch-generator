@@ -213,6 +213,9 @@ function toMessage(tags: Record<string, string>, prefix: string, text: string): 
     rawBadges,
     platform: 'twitch',
     userId: tags['user-id'] || undefined,
+    // Twitch marca la primera vez que alguien escribe en el canal. Llega en
+    // el mensaje mismo, asi que no hay que llevar registro de nada.
+    firstMessage: tags['first-msg'] === '1' || undefined,
   }
 }
 

@@ -454,3 +454,25 @@
   font-weight: 700;
   color: #ffb020;
 }
+
+/* Primera vez que alguien escribe en el canal.
+ *
+ * Verde en vez del ámbar de las rachas: es otra cosa. Una racha es alguien
+ * mostrando algo suyo; esto es alguien apareciendo por primera vez, y sirve
+ * para poder saludarlo. Twitch lo marca en el mensaje, así que no hay que
+ * llevar registro de quién habló antes. */
+.cr-msg.is-first {
+  background: rgba(55, 211, 165, 0.08);
+  box-shadow: inset 3px 0 0 #37d3a5;
+}
+
+.cr-msg.is-first:nth-child(even) {
+  background: rgba(55, 211, 165, 0.11);
+}
+
+.cr-first {
+  margin: 0 0 3px;
+  font-size: 0.74em;
+  font-weight: 700;
+  color: #37d3a5;
+}
