@@ -257,9 +257,10 @@ export function useChatFeed(
         setKickDetail(detail)
       },
       onMessage: accept,
+      onNotice: showNotices ? acceptNotice : undefined,
       onRemove: (removal) => removeFrom('kick', removal),
     })
-  }, [live, running, kickChatroomId, accept, removeFrom])
+  }, [live, running, kickChatroomId, accept, acceptNotice, showNotices, removeFrom])
 
   /* ---------------------- simulacion ---------------------- */
 

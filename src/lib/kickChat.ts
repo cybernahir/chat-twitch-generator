@@ -33,6 +33,15 @@ export interface KickChatHandlers {
    * mensajes, asi que no hay que suscribirse a nada mas.
    */
   onRemove?: (removal: ChatRemoval) => void
+  /**
+   * Alguien se suscribio o renovo.
+   *
+   * Llega por **el mismo canal del chat**, igual que la moderacion. Verificado
+   * escuchando canales en vivo: el `SubscriptionEvent` aparece en
+   * `chatrooms.<id>.v2`, no en `channel.<id>` como se podria suponer, asi que
+   * no hay que suscribirse a nada mas ni conocer el id del canal.
+   */
+  onNotice?: (message: ChatMessage) => void
 }
 
 /** Insignias de Kick traducidas a las que sabemos dibujar. */
@@ -241,13 +250,40 @@ export function connectKickChat(chatroomId: string, handlers: KickChatHandlers):
         name.includes('MessageDeletedEvent') ||
         name.includes('UserBannedEvent') ||
         name.includes('ChatroomClearEvent')
+      const esSuscripcion = name.includes('SubscriptionEvent')
 
-      if (!esMensaje && !esModeracion) return
+      if (!esMensaje && !esModeracion && !esSuscripcion) return
 
       let payload: any
       try {
         payload = typeof frame.data === 'string' ? JSON.parse(frame.data) : frame.data
       } catch {
+        return
+      }
+
+      /**
+       * Suscripcion. El payload es corto y esto es todo lo que trae:
+       *
+       *   { chatroom_id: 715, username: "Zaffman", months: 3 }
+       *
+       * Kick no distingue el sub nuevo de la renovacion, lo dice la cantidad
+       * de meses. Y no tiene racha: eso es cosa de Twitch.
+       */
+      if (esSuscripcion) {
+        const quien = payload?.username?.trim()
+        if (!quien || !handlers.onNotice) return
+
+        const meses = Number(payload?.months) || 1
+        handlers.onNotice({
+          id: `kicksub${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          user: quien,
+          text: '',
+          color: '#53FC18',
+          badges: [],
+          createdAt: Date.now(),
+          platform: 'kick',
+          notice: { kind: meses > 1 ? 'resub' : 'sub', months: meses },
+        })
         return
       }
 

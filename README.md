@@ -205,11 +205,25 @@ mismo socket anónimo que el chat. Son dos, y lo que tienen en común es lo que
 los hace valer la pena: **las dos cosas son opt-in**, sólo llegan cuando la
 persona eligió mostrarlas.
 
-| Qué | Cómo se ve |
-| --- | --- |
-| Racha de ver el stream | `Racha de 15 streams` arriba del mensaje |
-| Sub nuevo | `se suscribió` |
-| Renovación | `renovó su sub · 15 meses · 9 meses seguidos` |
+| Qué | Twitch | Kick | Cómo se ve |
+| --- | --- | --- | --- |
+| Racha de ver el stream | Sí | — | `Racha de 15 streams` arriba del mensaje |
+| Sub nuevo | Sí | Sí | `se suscribió` |
+| Renovación | Sí | Sí | `renovó su sub · 15 meses · 9 meses seguidos` |
+| Racha de meses | Sí | — | la parte en ámbar de arriba |
+| Sub regalado | — | — | todavía no |
+
+**Los subs de Kick llegan por el canal del chat**, el mismo al que ya estábamos
+suscriptos — no por `channel.<id>`, que es donde uno supondría. Verificado
+escuchando canales en vivo, y por eso no hace falta ninguna suscripción extra
+ni conocer el id del canal. El payload es todo lo que hay:
+
+```json
+{ "chatroom_id": 715, "username": "Zaffman", "months": 3 }
+```
+
+Kick no distingue el sub nuevo de la renovación: lo dice la cantidad de meses.
+Y no tiene rachas, eso es cosa de Twitch.
 
 Las dos rachas comparten el mismo ámbar a propósito: "alguien mostró su racha"
 es una sola categoría para el ojo, y el texto dice cuál de las dos es.
