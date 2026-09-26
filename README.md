@@ -173,6 +173,42 @@ puesto. Se restaura al abrir y sigue desde ahí.
 Vive en `localStorage`, o sea en ese navegador y nada más. Si está lleno o
 bloqueado (navegación privada), el chat anda igual, sin memoria.
 
+### Rachas y suscripciones
+
+En la lista se intercalan los avisos que Twitch manda por `USERNOTICE`, el
+mismo socket anónimo que el chat. Son dos, y lo que tienen en común es lo que
+los hace valer la pena: **las dos cosas son opt-in**, sólo llegan cuando la
+persona eligió mostrarlas.
+
+| Qué | Cómo se ve |
+| --- | --- |
+| Racha de ver el stream | `Racha de 15 streams` arriba del mensaje |
+| Sub nuevo | `se suscribió` |
+| Renovación | `renovó su sub · 15 meses · 9 meses seguidos` |
+
+Las dos rachas comparten el mismo ámbar a propósito: "alguien mostró su racha"
+es una sola categoría para el ojo, y el texto dice cuál de las dos es.
+
+Dos detalles que salieron de mirar eventos reales:
+
+- **La racha de ver el stream viene con el mensaje que la persona escribió**,
+  no es un evento suelto. Por eso el mensaje se dibuja normal y la racha va
+  arriba como contexto; en los subs es al revés, el aviso *es* la línea.
+- **La racha de meses falta la mitad de las veces.** De cinco resubs
+  capturados, dos la compartieron. Que no venga no significa que sea cero:
+  significa que no la quisieron mostrar, así que no se inventa nada.
+
+Twitch **no** dice en cada mensaje cuántos streams seguidos viene mirando
+alguien; el dato existe sólo en el momento en que esa persona lo publica. Y es
+esporádico: cuatro avisos en tres minutos repartidos entre 25 canales grandes.
+
+Los regalos de sub y los raids llegan por el mismo comando pero no traen racha,
+así que quedaron afuera. Kick tampoco entra: no tiene el concepto de racha y
+sus subs viajan por otro canal de Pusher.
+
+En el overlay de OBS nada de esto aparece — va detrás de una opción apagada por
+defecto, igual que el tachado de los mensajes moderados.
+
 ### Limpiar
 
 El botón **Limpiar** del encabezado vacía **sólo esta pantalla** y lo que tenía

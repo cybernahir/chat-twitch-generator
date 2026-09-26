@@ -40,6 +40,46 @@ export interface ReplyRef {
   text: string
 }
 
+/** Nivel de suscripción. Twitch lo manda; en Kick no existe. */
+export type SubTier = 'prime' | '1' | '2' | '3'
+
+/**
+ * Algo que pasó y que no es un mensaje común.
+ *
+ * Todo esto llega por `USERNOTICE`, el mismo socket anónimo que el chat, y va
+ * mezclado en la lista porque así es como se lee: en el momento en que pasó.
+ *
+ * Las dos formas tienen algo en común y es lo que las hace valer la pena:
+ * **las dos son opt-in**. Sólo llegan cuando la persona eligió mostrarlo.
+ */
+export type Notice =
+  /** Se suscribió o renovó. */
+  | {
+      kind: 'sub' | 'resub'
+      /** Meses acumulados de suscripción. */
+      months?: number
+      /**
+       * Meses seguidos sin cortar.
+       *
+       * Está sólo si la persona eligió compartirla: de cada dos resubs, más o
+       * menos uno la comparte. Que falte no quiere decir que sea cero, quiere
+       * decir que no la quiso mostrar.
+       *
+       * No es lo mismo que `months`: se puede llevar 15 meses en total y 9
+       * seguidos si en el medio se cortó.
+       */
+      streak?: number
+      tier?: SubTier
+    }
+  /**
+   * Mostró su racha de ver el stream.
+   *
+   * Twitch no dice en cada mensaje cuántos streams seguidos viene mirando
+   * alguien: el dato llega únicamente cuando esa persona elige publicarlo, y
+   * viene junto con el mensaje que escribió en ese momento.
+   */
+  | { kind: 'watch-streak'; streams: number }
+
 export interface ChatMessage {
   id: string
   user: string
@@ -51,6 +91,15 @@ export interface ChatMessage {
   reply?: ReplyRef
   /** Presente cuando lo moderaron y se eligió dejarlo tachado en vez de sacarlo. */
   deleted?: Deletion
+  /**
+   * Presente cuando además del mensaje pasó algo: se suscribió, renovó, o
+   * mostró su racha de ver el stream.
+   *
+   * `text` queda con lo que la persona escribió. En los subs suele estar
+   * vacío; en las rachas de visualización siempre viene algo, porque el aviso
+   * se dispara justo cuando escribe.
+   */
+  notice?: Notice
   /** Solo en mensajes reales que traen emotes. */
   segments?: MessageSegment[]
   /** Insignias crudas de Twitch (`subscriber/9`), para buscar su imagen real. */

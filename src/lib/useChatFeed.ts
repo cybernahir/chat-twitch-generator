@@ -74,6 +74,14 @@ export interface ChatFeedOptions {
    * de lectura, donde tacharlos es mejor que hacerlos desaparecer sin aviso.
    */
   keepDeleted?: boolean
+  /**
+   * Intercalar los avisos de suscripción en la lista.
+   *
+   * Apagado por defecto: el overlay muestra sólo mensajes y nadie pidió
+   * cambiarlo. Lo prende la pantalla de lectura, donde ver que alguien renovó
+   * —y con qué racha, si la compartió— es parte de seguir el chat.
+   */
+  showNotices?: boolean
 }
 
 /**
@@ -87,7 +95,7 @@ export interface ChatFeedOptions {
 export function useChatFeed(
   config: ChatConfig,
   running = true,
-  { keepDeleted = false }: ChatFeedOptions = {},
+  { keepDeleted = false, showNotices = false }: ChatFeedOptions = {},
 ): ChatFeed {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [twitchStatus, setTwitchStatus] = useState<TwitchStatus>('idle')
@@ -145,6 +153,19 @@ export function useChatFeed(
     if (hide && message.text.trim().startsWith('!')) return
     if (parseBlocked(blocked).includes(message.user.toLowerCase())) return
 
+    setMessages((prev) => [...prev, message].slice(-Math.max(1, cap)))
+  }, [])
+
+  /**
+   * Entrada de los avisos de suscripción.
+   *
+   * Va aparte de `accept` por el filtro de comandos: un aviso no empieza con
+   * `!` pero el mensaje que la persona escribe al renovar podría, y eso no es
+   * un comando de bot. El filtro de usuarios ocultos sí se respeta.
+   */
+  const acceptNotice = useCallback((message: ChatMessage) => {
+    const { maxMessages: cap, blockedUsers: blocked } = filters.current
+    if (parseBlocked(blocked).includes(message.user.toLowerCase())) return
     setMessages((prev) => [...prev, message].slice(-Math.max(1, cap)))
   }, [])
 
@@ -216,10 +237,11 @@ export function useChatFeed(
         setTwitchDetail(detail)
       },
       onMessage: accept,
+      onNotice: showNotices ? acceptNotice : undefined,
       onRoomId: setTwitchRoomId,
       onRemove: (removal) => removeFrom('twitch', removal),
     })
-  }, [live, running, twitchChannel, accept, removeFrom])
+  }, [live, running, twitchChannel, accept, acceptNotice, showNotices, removeFrom])
 
   /* ---------------------- chat real de Kick ---------------------- */
 

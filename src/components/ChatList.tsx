@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { BadgeRow } from './Badge'
 import { PLATFORMS, platformLogo } from './ChatOverlay'
-import type { ChatMessage, Deletion } from '../types'
+import type { ChatMessage, Deletion, Notice } from '../types'
 
 /**
  * La lista de mensajes de la pantalla de lectura.
@@ -63,6 +63,29 @@ function avisoDeBorrado({ by, scope }: Deletion): string {
   return `Mensaje borrado${quien}`
 }
 
+/**
+ * La línea de un aviso de suscripción.
+ *
+ * La racha va aparte y resaltada porque es lo que la persona *eligió* mostrar:
+ * si está, es que quiso que se viera. Los meses acumulados son el contexto.
+ */
+function AvisoDeSub({ notice }: { notice: Extract<Notice, { kind: 'sub' | 'resub' }> }) {
+  const meses = notice.months
+  return (
+    <span className="cr-notice-text">
+      {notice.kind === 'resub' ? 'renovó su sub' : 'se suscribió'}
+      {meses !== undefined && meses > 1 && (
+        <span className="cr-notice-dato">{meses} meses</span>
+      )}
+      {notice.streak !== undefined && (
+        <span className="cr-notice-racha">
+          {notice.streak} {notice.streak === 1 ? 'mes seguido' : 'meses seguidos'}
+        </span>
+      )}
+    </span>
+  )
+}
+
 /** El cuerpo de un mensaje, con sus emotes si los trae. */
 function Body({ message }: { message: ChatMessage }) {
   if (!message.segments) return <>{message.text}</>
@@ -106,7 +129,14 @@ const MessageRow = memo(function MessageRow({
 
   return (
     <article
-      className={['cr-msg', plataforma ? `is-${m.platform}` : '', m.deleted ? 'is-deleted' : '']
+      className={[
+        'cr-msg',
+        plataforma ? `is-${m.platform}` : '',
+        m.deleted ? 'is-deleted' : '',
+        m.notice ? 'is-notice' : '',
+        m.notice && 'streak' in m.notice && m.notice.streak !== undefined ? 'is-streak' : '',
+        m.notice?.kind === 'watch-streak' ? 'is-watch-streak' : '',
+      ]
         .filter(Boolean)
         .join(' ')}
     >
@@ -117,6 +147,14 @@ const MessageRow = memo(function MessageRow({
         <p className="cr-reply">
           <span className="cr-reply-user">{m.reply.user}</span>
           <span className="cr-reply-text">{m.reply.text}</span>
+        </p>
+      )}
+
+      {/* La racha de ver el stream, arriba del mensaje: es el contexto de lo
+          que escribió, no el contenido. */}
+      {m.notice?.kind === 'watch-streak' && (
+        <p className="cr-watch-streak">
+          Racha de {m.notice.streams} {m.notice.streams === 1 ? 'stream' : 'streams'}
         </p>
       )}
 
@@ -148,10 +186,25 @@ const MessageRow = memo(function MessageRow({
         <b className="cr-user" style={{ color: readableColor(m.color) }}>
           {m.user}
         </b>
-        <span className="cr-text">
-          <Body message={m} />
-        </span>
+
+        {/* En un sub el aviso *es* la línea: lo que escribió, si escribió,
+            va abajo. En una racha de ver el stream pasa al revés — el mensaje
+            es lo que la persona quiso decir y la racha lo acompaña— así que
+            se dibuja como un mensaje normal. */}
+        {m.notice && m.notice.kind !== 'watch-streak' ? (
+          <AvisoDeSub notice={m.notice} />
+        ) : (
+          <span className="cr-text">
+            <Body message={m} />
+          </span>
+        )}
       </p>
+
+      {m.notice?.kind !== 'watch-streak' && m.notice && m.text && (
+        <p className="cr-notice-msg">
+          <Body message={m} />
+        </p>
+      )}
 
       {m.deleted && <p className="cr-deleted">{avisoDeBorrado(m.deleted)}</p>}
     </article>

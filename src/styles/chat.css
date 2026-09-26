@@ -377,3 +377,80 @@
   opacity: 0.3;
   cursor: default;
 }
+
+/* ---------------- Avisos de suscripción ---------------- */
+
+/* Una línea del chat, pero que se distinga al pasar los ojos: pasa cada tanto
+   y es de las cosas que quien lee no se quiere perder. Fondo apenas más claro
+   y una barra al costado, sin llegar a ser un cartel. */
+.cr-msg.is-notice {
+  background: rgba(145, 70, 255, 0.07);
+  box-shadow: inset 3px 0 0 #9146ff;
+}
+
+/* Gana a las franjas alternas, que si no le comen el fondo. */
+.cr-msg.is-notice:nth-child(even) {
+  background: rgba(145, 70, 255, 0.1);
+}
+
+/* Con racha compartida se nota un poco más: es lo que la persona quiso mostrar. */
+.cr-msg.is-notice.is-streak {
+  background: rgba(255, 176, 32, 0.09);
+  box-shadow: inset 3px 0 0 #ffb020;
+}
+
+.cr-msg.is-notice.is-streak:nth-child(even) {
+  background: rgba(255, 176, 32, 0.12);
+}
+
+.cr-notice-text {
+  margin-left: 0.4em;
+  color: var(--cr-ink-soft);
+}
+
+/* Los meses acumulados: contexto, en tono menor. */
+.cr-notice-dato::before,
+.cr-notice-racha::before {
+  content: '·';
+  margin: 0 0.45em;
+  color: var(--cr-ink-faint);
+}
+
+.cr-notice-dato {
+  color: var(--cr-ink-soft);
+}
+
+/* La racha, que es el dato que la persona eligió compartir. */
+.cr-notice-racha {
+  color: #ffb020;
+  font-weight: 700;
+}
+
+/* Lo que escribió al renovar. */
+.cr-notice-msg {
+  margin: 3px 0 0;
+  color: var(--cr-ink);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* La racha de ver el stream.
+ *
+ * Mismo ámbar que la racha de meses, a propósito: las dos son "alguien mostró
+ * su racha", que es lo que quien lee no se quiere perder. El texto dice cuál
+ * de las dos es. */
+.cr-msg.is-watch-streak {
+  background: rgba(255, 176, 32, 0.09);
+  box-shadow: inset 3px 0 0 #ffb020;
+}
+
+.cr-msg.is-watch-streak:nth-child(even) {
+  background: rgba(255, 176, 32, 0.12);
+}
+
+.cr-watch-streak {
+  margin: 0 0 3px;
+  font-size: 0.74em;
+  font-weight: 700;
+  color: #ffb020;
+}

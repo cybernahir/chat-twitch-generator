@@ -1,5 +1,13 @@
 import { TWITCH_COLORS } from '../defaults'
-import type { BadgeId, ChatMessage, ChatRemoval, MessageSegment, ReplyRef } from '../types'
+import type {
+  BadgeId,
+  ChatMessage,
+  ChatRemoval,
+  MessageSegment,
+  Notice,
+  ReplyRef,
+  SubTier,
+} from '../types'
 
 /**
  * Lector del chat real de Twitch.
@@ -39,6 +47,14 @@ export interface TwitchChatHandlers {
    * insignias del canal que se esta leyendo.
    */
   onRoomId?: (roomId: string) => void
+  /**
+   * Alguien se suscribio o renovo.
+   *
+   * Va por un handler aparte de `onMessage` para que cada pantalla decida:
+   * la de lectura los intercala en la lista, y el overlay de OBS —que no los
+   * pidio— sigue mostrando solo mensajes.
+   */
+  onNotice?: (message: ChatMessage) => void
 }
 
 /** Insignias de Twitch que sabemos dibujar con icono. El resto se ignora. */
@@ -200,6 +216,100 @@ function toMessage(tags: Record<string, string>, prefix: string, text: string): 
   }
 }
 
+/* ------------------------ avisos de suscripcion ------------------------ */
+
+/** `Prime`, `1000`, `2000`, `3000` -> algo que se pueda mostrar. */
+function parseTier(plan: string | undefined): SubTier | undefined {
+  if (!plan) return undefined
+  if (plan.toLowerCase() === 'prime') return 'prime'
+  if (plan === '1000') return '1'
+  if (plan === '2000') return '2'
+  if (plan === '3000') return '3'
+  return undefined
+}
+
+function num(value: string | undefined): number | undefined {
+  if (!value) return undefined
+  const n = Number(value)
+  return Number.isFinite(n) && n > 0 ? n : undefined
+}
+
+/**
+ * Que clase de aviso es, si es alguno que sepamos mostrar.
+ *
+ * Verificado contra eventos reales de Twitch:
+ *
+ *  - `sub` / `resub`: hablan de *esta* persona y pueden traer racha de meses.
+ *    Esa racha es opcional —`msg-param-streak-months` llega solo si
+ *    `msg-param-should-share-streak` vale 1— y de cinco resubs capturados, dos
+ *    la compartieron. Que falte no significa cero: significa que no la quiso
+ *    mostrar, asi que no se inventa nada.
+ *  - `viewermilestone` con categoria `watch-streak`: la racha de ver el
+ *    stream, en cantidad de streams seguidos (`msg-param-value`). Viene junto
+ *    con el mensaje que la persona escribio en ese momento.
+ *
+ * Los regalos (`subgift`, `submysterygift`) llegan por el mismo comando pero
+ * no traen ni meses ni racha, asi que quedan afuera hasta que hagan falta.
+ *
+ * El `system-msg` que arma Twitch ya trae la frase hecha, pero en ingles y sin
+ * forma de cambiarla: se ignora y se usan los datos sueltos.
+ */
+function parseNotice(tags: Record<string, string>): Notice | null {
+  const tipo = tags['msg-id']
+
+  if (tipo === 'sub' || tipo === 'resub') {
+    return {
+      kind: tipo,
+      months: num(tags['msg-param-cumulative-months']),
+      streak:
+        tags['msg-param-should-share-streak'] === '1'
+          ? num(tags['msg-param-streak-months'])
+          : undefined,
+      tier: parseTier(tags['msg-param-sub-plan']),
+    }
+  }
+
+  // `viewermilestone` es la familia; hoy la unica categoria es `watch-streak`,
+  // pero se comprueba para no dibujar como racha algo que maniana sea otra cosa.
+  if (tipo === 'viewermilestone' && tags['msg-param-category'] === 'watch-streak') {
+    const streams = num(tags['msg-param-value'])
+    return streams ? { kind: 'watch-streak', streams } : null
+  }
+
+  return null
+}
+
+/** Convierte un USERNOTICE que sepamos mostrar en una linea del chat. */
+function toNotice(tags: Record<string, string>, text: string): ChatMessage | null {
+  const notice = parseNotice(tags)
+  if (!notice) return null
+
+  const login = tags.login ?? ''
+  const user = tags['display-name']?.trim() || login || 'usuario'
+
+  const cuerpo = text.trim()
+
+  return {
+    id: tags.id || `twn${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    user,
+    // Lo que escribio en ese momento, si escribio algo.
+    text: cuerpo,
+    color: tags.color || fallbackColor(login || user),
+    badges: parseBadges(tags.badges),
+    rawBadges: tags.badges ? tags.badges.split(',').filter(Boolean) : undefined,
+    createdAt: Number(tags['tmi-sent-ts']) || Date.now(),
+    // Los emotes se marcan igual que en un mensaje normal: el texto de una
+    // racha de visualizacion es un mensaje de chat como cualquier otro.
+    segments: (() => {
+      const partes = buildSegments(cuerpo, tags.emotes)
+      return partes.some((s) => s.type === 'emote') ? partes : undefined
+    })(),
+    platform: 'twitch',
+    userId: tags['user-id'] || undefined,
+    notice,
+  }
+}
+
 /**
  * Abre la conexion y devuelve una funcion para cerrarla.
  * Reconecta sola con espera creciente si se cae.
@@ -298,6 +408,19 @@ export function connectTwitchChat(channel: string, handlers: TwitchChatHandlers)
         // Twitch puede pedir que nos reconectemos por mantenimiento.
         if (command === 'RECONNECT') {
           ws.close()
+          continue
+        }
+
+        // Subs y resubs. Twitch ya los venia mandando por esta misma conexion
+        // —el CAP REQ de `commands` es justo lo que los habilita— y se
+        // descartaban. Aca tambien viaja el mensaje que escribe la persona al
+        // renovar, que por eso nunca aparecia en el chat.
+        if (command === 'USERNOTICE') {
+          if (handlers.onNotice) {
+            const textAt = rest.indexOf(' :')
+            const aviso = toNotice(tags, textAt >= 0 ? rest.slice(textAt + 2) : '')
+            if (aviso) handlers.onNotice(aviso)
+          }
           continue
         }
 

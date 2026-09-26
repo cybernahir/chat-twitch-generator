@@ -105,10 +105,12 @@ export default function ChatPage() {
     [badgeImages],
   )
 
-  // `keepDeleted`: acá los mensajes moderados se tachan en vez de irse. El
-  // overlay hace lo contrario, y tiene que seguir haciéndolo.
+  // Las dos cosas que separan esta pantalla del overlay de OBS: los mensajes
+  // moderados se tachan en vez de irse, y los subs y resubs se intercalan en
+  // la lista. El overlay sigue como estaba, que es lo que corresponde ahí.
   const { messages, clear, twitchStatus, kickStatus } = useChatFeed(config, true, {
     keepDeleted: true,
+    showNotices: true,
   })
 
   /* ---------------------- historial ---------------------- */
