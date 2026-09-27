@@ -69,18 +69,34 @@ function avisoDeBorrado({ by, scope }: Deletion): string {
  * La racha va aparte y resaltada porque es lo que la persona *eligió* mostrar:
  * si está, es que quiso que se viera. Los meses acumulados son el contexto.
  */
-function Aviso({ notice }: { notice: Exclude<Notice, { kind: 'watch-streak' }> }) {
-  // Una raid no trae mensaje, así que el aviso va en la línea del nombre:
-  // "elTano trajo 143 personas". Poner "elTano:" y nada al lado quedaba raro.
+/** Qué dice la pastilla de cada evento. Es lo que se lee primero. */
+function textoChip(notice: Notice): string {
+  switch (notice.kind) {
+    case 'watch-streak':
+      return `Racha de ${notice.streams} ${notice.streams === 1 ? 'stream' : 'streams'}`
+    case 'raid':
+      return 'Raid'
+    case 'resub':
+      return 'Renovación'
+    default:
+      return 'Sub nuevo'
+  }
+}
+
+/**
+ * Los datos sueltos de un sub o una raid, en la línea del nombre.
+ *
+ * El verbo ("renovó su sub", "trajo") se fue a la pastilla, así que acá sólo
+ * quedan los números. Si no, la fila decía dos veces lo mismo.
+ */
+function Datos({ notice }: { notice: Exclude<Notice, { kind: 'watch-streak' }> }) {
   if (notice.kind === 'raid') {
+    if (notice.viewers === undefined) return null
     return (
       <span className="cr-notice-text">
-        {notice.viewers !== undefined ? 'trajo' : 'hizo un raid'}
-        {notice.viewers !== undefined && (
-          <span className="cr-notice-raid">
-            {notice.viewers} {notice.viewers === 1 ? 'persona' : 'personas'}
-          </span>
-        )}
+        <span className="cr-notice-raid">
+          {notice.viewers} {notice.viewers === 1 ? 'persona' : 'personas'}
+        </span>
       </span>
     )
   }
@@ -88,10 +104,7 @@ function Aviso({ notice }: { notice: Exclude<Notice, { kind: 'watch-streak' }> }
   const meses = notice.months
   return (
     <span className="cr-notice-text">
-      {notice.kind === 'resub' ? 'renovó su sub' : 'se suscribió'}
-      {meses !== undefined && meses > 1 && (
-        <span className="cr-notice-dato">{meses} meses</span>
-      )}
+      {meses !== undefined && meses > 1 && <span className="cr-notice-dato">{meses} meses</span>}
       {notice.streak !== undefined && (
         <span className="cr-notice-racha">
           {notice.streak} {notice.streak === 1 ? 'mes seguido' : 'meses seguidos'}
@@ -148,34 +161,30 @@ const MessageRow = memo(function MessageRow({
         'cr-msg',
         plataforma ? `is-${m.platform}` : '',
         m.deleted ? 'is-deleted' : '',
+        m.notice || m.firstMessage ? 'is-evento' : '',
         m.notice ? 'is-notice' : '',
         m.notice && 'streak' in m.notice && m.notice.streak !== undefined ? 'is-streak' : '',
         m.notice?.kind === 'watch-streak' ? 'is-watch-streak' : '',
         m.firstMessage ? 'is-first' : '',
         m.notice?.kind === 'raid' ? 'is-raid' : '',
+        m.notice && m.notice.kind !== 'watch-streak' && !m.text ? 'sin-texto' : '',
       ]
         .filter(Boolean)
         .join(' ')}
     >
-      {/* El mensaje al que contesta, arriba y en chico: se entiende la
-          conversación sin tener que ir a buscar el original, que puede
-          haber quedado muy arriba o directamente fuera del historial. */}
-      {/* Primera vez que escribe. Va arriba de todo, incluso de la cita: la
-          cita dice a qué contesta, esto dice quién es, y eso encabeza la fila. */}
-      {m.firstMessage && <p className="cr-first">Primer mensaje en el canal</p>}
+      {/* La pastilla encabeza la fila, incluso arriba de la cita de una
+          respuesta: la cita dice a qué contesta, la pastilla dice qué pasó.
+          Todos los eventos la llevan, así los cuatro se leen igual de rápido. */}
+      {m.notice && <span className="cr-evento-chip">{textoChip(m.notice)}</span>}
+      {m.firstMessage && <span className="cr-evento-chip">Primer mensaje en el canal</span>}
 
+      {/* El mensaje al que contesta, en chico: se entiende la conversación sin
+          tener que ir a buscar el original, que puede haber quedado muy arriba
+          o directamente fuera del historial. */}
       {m.reply && (
         <p className="cr-reply">
           <span className="cr-reply-user">{m.reply.user}</span>
           <span className="cr-reply-text">{m.reply.text}</span>
-        </p>
-      )}
-
-      {/* La racha de ver el stream, arriba del mensaje: es el contexto de lo
-          que escribió, no el contenido. */}
-      {m.notice?.kind === 'watch-streak' && (
-        <p className="cr-watch-streak">
-          Racha de {m.notice.streams} {m.notice.streams === 1 ? 'stream' : 'streams'}
         </p>
       )}
 
@@ -212,8 +221,11 @@ const MessageRow = memo(function MessageRow({
             va abajo. En una racha de ver el stream pasa al revés — el mensaje
             es lo que la persona quiso decir y la racha lo acompaña— así que
             se dibuja como un mensaje normal. */}
+        {/* En un sub o una raid la línea son el nombre y los números; lo que
+            haya escrito va abajo. En una racha de ver el stream, en cambio, el
+            mensaje es lo que la persona quiso decir, así que va acá. */}
         {m.notice && m.notice.kind !== 'watch-streak' ? (
-          <Aviso notice={m.notice} />
+          <Datos notice={m.notice} />
         ) : (
           <span className="cr-text">
             <Body message={m} />

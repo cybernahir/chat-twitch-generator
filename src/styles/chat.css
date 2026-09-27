@@ -156,15 +156,13 @@
   border-left: 3px solid transparent;
 }
 
-/* Una línea de color al costado sólo cuando hay dos plataformas mezcladas:
-   con una sola sería ruido, porque todos los mensajes vendrían del mismo lado. */
-.cr-msg.is-twitch {
-  border-left-color: #9146ff;
-}
+/* La barra izquierda quedo reservada para los eventos.
 
-.cr-msg.is-kick {
-  border-left-color: #53fc18;
-}
+   Antes cada mensaje la pintaba con el color de su plataforma, y eso era
+   justo lo que impedia que un sub o una raid se destacaran: tenian la misma
+   marca lateral que cualquier mensaje corriente. La plataforma ya la dice el
+   logo al principio de cada linea, asi que la barra se libero para lo que si
+   necesita gritar. */
 
 /* Franjas alternas muy suaves: ayudan a no perder el renglón en una pantalla
    alta, sin llegar a dibujar una tabla. */
@@ -380,28 +378,6 @@
 
 /* ---------------- Avisos de suscripción ---------------- */
 
-/* Una línea del chat, pero que se distinga al pasar los ojos: pasa cada tanto
-   y es de las cosas que quien lee no se quiere perder. Fondo apenas más claro
-   y una barra al costado, sin llegar a ser un cartel. */
-.cr-msg.is-notice {
-  background: rgba(145, 70, 255, 0.07);
-  box-shadow: inset 3px 0 0 #9146ff;
-}
-
-/* Gana a las franjas alternas, que si no le comen el fondo. */
-.cr-msg.is-notice:nth-child(even) {
-  background: rgba(145, 70, 255, 0.1);
-}
-
-/* Con racha compartida se nota un poco más: es lo que la persona quiso mostrar. */
-.cr-msg.is-notice.is-streak {
-  background: rgba(255, 176, 32, 0.09);
-  box-shadow: inset 3px 0 0 #ffb020;
-}
-
-.cr-msg.is-notice.is-streak:nth-child(even) {
-  background: rgba(255, 176, 32, 0.12);
-}
 
 .cr-notice-text {
   margin-left: 0.4em;
@@ -434,62 +410,10 @@
   overflow-wrap: anywhere;
 }
 
-/* La racha de ver el stream.
- *
- * Mismo ámbar que la racha de meses, a propósito: las dos son "alguien mostró
- * su racha", que es lo que quien lee no se quiere perder. El texto dice cuál
- * de las dos es. */
-.cr-msg.is-watch-streak {
-  background: rgba(255, 176, 32, 0.09);
-  box-shadow: inset 3px 0 0 #ffb020;
-}
 
-.cr-msg.is-watch-streak:nth-child(even) {
-  background: rgba(255, 176, 32, 0.12);
-}
 
-.cr-watch-streak {
-  margin: 0 0 3px;
-  font-size: 0.74em;
-  font-weight: 700;
-  color: #ffb020;
-}
 
-/* Primera vez que alguien escribe en el canal.
- *
- * Verde en vez del ámbar de las rachas: es otra cosa. Una racha es alguien
- * mostrando algo suyo; esto es alguien apareciendo por primera vez, y sirve
- * para poder saludarlo. Twitch lo marca en el mensaje, así que no hay que
- * llevar registro de quién habló antes. */
-.cr-msg.is-first {
-  background: rgba(55, 211, 165, 0.08);
-  box-shadow: inset 3px 0 0 #37d3a5;
-}
 
-.cr-msg.is-first:nth-child(even) {
-  background: rgba(55, 211, 165, 0.11);
-}
-
-.cr-first {
-  margin: 0 0 3px;
-  font-size: 0.74em;
-  font-weight: 700;
-  color: #37d3a5;
-}
-
-/* Raid: otro canal acaba de mandar a toda su gente.
- *
- * Es el evento mas grande de los que mostramos, asi que lleva el fondo mas
- * marcado. Cian y no ambar ni violeta: no es una racha ni una suscripcion,
- * es gente llegando. */
-.cr-msg.is-raid {
-  background: rgba(79, 195, 247, 0.12);
-  box-shadow: inset 3px 0 0 #4fc3f7;
-}
-
-.cr-msg.is-raid:nth-child(even) {
-  background: rgba(79, 195, 247, 0.15);
-}
 
 .cr-notice-raid::before {
   content: '·';
@@ -500,4 +424,114 @@
 .cr-notice-raid {
   color: #4fc3f7;
   font-weight: 700;
+}
+
+/* ---------------- Eventos ---------------- */
+
+/* Un sub, una raid, una racha o un primer mensaje no son un mensaje mas: son
+ * las cosas que quien lee el chat no se quiere perder. Antes se marcaban con
+ * un tinte del 7% al 15% y una barra de 3px, la misma que llevaba cualquier
+ * mensaje con su color de plataforma. Resultado: no se distinguian.
+ *
+ * Ahora la fila se separa del flujo y se dibuja como un bloque propio. Cada
+ * tipo aporta su color por `--evento` y el resto del tratamiento es comun, asi
+ * que agregar un tipo nuevo es una linea. */
+.cr-msg.is-evento {
+  position: relative;
+  margin: 9px 8px;
+  padding: 10px 14px;
+  border-left: 5px solid var(--evento);
+  border-radius: 10px;
+  /* Respaldo por si `color-mix` no esta disponible. */
+  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--evento) 15%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--evento) 30%, transparent);
+}
+
+/* Gana a las franjas alternas, que si no le comen el fondo. */
+.cr-msg.is-evento:nth-child(even) {
+  background: color-mix(in srgb, var(--evento) 18%, transparent);
+}
+
+.cr-msg.is-evento .cr-user {
+  color: var(--cr-ink) !important;
+}
+
+/* Colores por tipo. Cada uno dice una cosa distinta y conviene poder
+ * distinguirlos sin leer: ambar es "mostro su racha", verde es "aparecio por
+ * primera vez", cian es "llego gente", violeta es "se suscribio". */
+.cr-msg.is-notice { --evento: #a970ff; --evento-texto: #16081f; }
+.cr-msg.is-notice.is-streak,
+.cr-msg.is-watch-streak { --evento: #ffb020; --evento-texto: #241704; }
+.cr-msg.is-first { --evento: #37d3a5; --evento-texto: #04231a; }
+.cr-msg.is-raid { --evento: #4fc3f7; --evento-texto: #04202b; }
+
+/* La etiqueta pasa a ser una pastilla solida.
+ *
+ * Antes era texto de 0,74em: anunciaba lo importante con menos peso que el
+ * mensaje corriente de al lado. El texto va oscuro sobre el color, que es
+ * donde hay mas contraste. */
+.cr-evento-chip {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 0 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--evento);
+  color: var(--evento-texto);
+  font-size: 0.72em;
+  font-weight: 800;
+  letter-spacing: 0.015em;
+}
+
+/* Los datos que van en la linea del nombre (meses, racha, gente de la raid)
+ * toman el color del evento, que ahora es el mismo de la barra y la pastilla. */
+.cr-notice-racha,
+.cr-notice-raid {
+  color: var(--evento);
+  font-weight: 700;
+}
+
+/* Entrada corta: el ojo va solo a lo que acaba de aparecer, que es
+ * exactamente para lo que existe esta fila. */
+@media (prefers-reduced-motion: no-preference) {
+  .cr-msg.is-evento {
+    animation: cr-evento-entra 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@keyframes cr-evento-entra {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Sin mensaje que mostrar, el nombre no lleva dos puntos: "gusatronic:" con
+   nada al lado se lee como si faltara algo. */
+.cr-msg.sin-texto .cr-user::after {
+  content: '';
+}
+
+/* En pantallas angostas el encabezado no entra en una linea: su contenido mide
+   unos 484px y abajo de eso el boton de limpiar se saldria por el costado.
+   Que baje a un segundo renglon.
+ *
+ * Sin verificar: el Chrome headless de este entorno ignora `--window-size` y
+ * renderiza siempre a 500px de ancho, asi que no se pudo llegar a este tramo.
+ * La pantalla se usa en un monitor vertical, muy por encima de estos anchos. */
+@media (max-width: 460px) {
+  .cr-head {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .cr-clear {
+    min-width: 0;
+    margin-left: auto;
+  }
 }

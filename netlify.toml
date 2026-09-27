@@ -23,6 +23,14 @@
   to = "/chat.html"
   status = 200
 
+# Las paginas declaran el icono con <link rel="icon">, pero navegadores y
+# rastreadores piden /favicon.ico igual. Sin esto contestaba 404 y el navegador
+# se quedaba con el icono generico.
+[[redirects]]
+  from = "/favicon.ico"
+  to = "/logo.png"
+  status = 200
+
 [[headers]]
   for = "/overlay.html"
   [headers.values]
