@@ -146,6 +146,25 @@ La sala de Kick va anotada a mano porque el navegador no puede traducir el
 nombre del canal a ese número (el endpoint de Kick no manda cabeceras CORS), y
 con el canal fijo no tiene sentido pasar por el servidor en cada carga.
 
+### La hora de cada mensaje
+
+Cada fila abre con la hora en que se mandó el mensaje, **siempre en la hora de
+Argentina** (UTC−3). Hora y minutos nada más; pasando el mouse sale la fecha
+completa con los segundos, que es lo que hace falta cuando el historial cruzó
+la medianoche.
+
+La zona va fija (`America/Argentina/Buenos_Aires`) y no se toma del reloj de la
+máquina: la pantalla se mira acá, así que un navegador que quedó configurado en
+otra zona tiene que seguir mostrando la hora de acá. Se nombra la zona en vez de
+restar tres horas a mano para que, si algún día volviera el horario de verano —no
+se mueve el reloj desde 2009—, lo arregle el navegador.
+
+No hay que medir nada del lado nuestro: la marca de tiempo viene en el propio
+mensaje, de Twitch en el tag `tmi-sent-ts` y de Kick en `created_at`. O sea que
+es la hora en que la persona lo escribió, no la hora en que llegó acá, y lo que
+se restaura después de un F5 conserva la suya en vez de amontonarse en el
+momento de la recarga.
+
 ### Respuestas
 
 Cuando alguien contesta a otro mensaje, arriba se muestra el original citado,

@@ -49,6 +49,59 @@ export function readableColor(hex: string): string {
 }
 
 /**
+ * La hora de cada mensaje, siempre la de Argentina.
+ *
+ * La zona va fija y no se toma del reloj de la máquina a propósito: el chat se
+ * lee acá, así que un navegador que quedó configurado en otra zona —una laptop
+ * en UTC, alguien mirando de viaje— tiene que seguir mostrando la hora de acá y
+ * no la suya. Argentina no mueve el reloj en verano desde 2009, así que UTC−3
+ * vale todo el año; se nombra la zona en vez de restar tres horas a mano para
+ * que, si algún día volviera el horario de verano, lo arregle el navegador.
+ *
+ * Los dos formatos se arman una sola vez: crear un `Intl.DateTimeFormat` por
+ * mensaje se nota con la lista llena, que son hasta mil filas.
+ */
+const ZONA = 'America/Argentina/Buenos_Aires'
+
+/* `hourCycle` y no `hour12: false`: con el segundo hay motores que pasada la
+   medianoche escriben "24:05" en vez de "00:05". */
+const HORA = new Intl.DateTimeFormat('es-AR', {
+  timeZone: ZONA,
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
+/** Para el `title`: el historial puede cruzar la medianoche, y "23:58" solo no dice qué día. */
+const FECHA_Y_HORA = new Intl.DateTimeFormat('es-AR', {
+  timeZone: ZONA,
+  dateStyle: 'short',
+  timeStyle: 'medium',
+  hourCycle: 'h23',
+})
+
+/**
+ * La hora, al principio del renglón.
+ *
+ * Hora y minutos nada más: los segundos ensucian la columna y para ubicar un
+ * mensaje no hacen falta. Quedan en el `title`, con la fecha al lado.
+ *
+ * Sin marca de tiempo no se dibuja nada. Los mensajes reales siempre la traen
+ * —Twitch la manda en `tmi-sent-ts` y Kick en `created_at`— pero los de prueba
+ * con los que se mira esta lista pueden venir en cero, y "21:00" del 69 sería
+ * peor que no mostrar nada.
+ */
+function Hora({ at }: { at: number }) {
+  if (!Number.isFinite(at) || at <= 0) return null
+
+  return (
+    <time className="cr-hora" dateTime={new Date(at).toISOString()} title={FECHA_Y_HORA.format(at)}>
+      {HORA.format(at)}
+    </time>
+  )
+}
+
+/**
  * El cartelito de un mensaje moderado.
  *
  * El nombre del moderador casi nunca está: Twitch **no** dice quién borró un
@@ -189,6 +242,11 @@ const MessageRow = memo(function MessageRow({
       )}
 
       <p className="cr-line">
+        {/* La hora abre el renglón, antes del logo y de las insignias: es el
+            único dato que todas las filas llevan igual, así que en columna se
+            lee de un barrido sin que mueva de lugar al resto. */}
+        <Hora at={m.createdAt} />
+
         {/* De dónde vino el mensaje. Va antes que las insignias, a la
             misma altura, para que el renglón arranque siempre igual. */}
         {plataforma && (

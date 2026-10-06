@@ -170,6 +170,28 @@
   background: rgba(255, 255, 255, 0.022);
 }
 
+/* La hora del mensaje, en la hora de Argentina.
+ *
+ * Mas chica y apagada que el mensaje: tiene que poder ignorarse mientras se
+ * lee y estar ahi cuando se la busca.
+ *
+ * `tabular-nums` no es un detalle: con las cifras de ancho variable, "11:08" y
+ * "09:47" miden distinto y el nombre de cada fila arranca unos pixeles
+ * corrido, lo que en una pantalla alta se ve como un borde tembloroso.
+ *
+ * El gris es el secundario y no el mas apagado, que seria lo natural para un
+ * dato de servicio: medido sobre el fondo daba 3,8:1, y adentro de un bloque
+ * de evento —que tiene su propio tinte— caia a 2,8:1. Asi queda en 7,4:1 y
+ * 5,5:1, y sigue estando muy por debajo del texto del mensaje. */
+.cr-hora {
+  margin-right: 0.5em;
+  color: var(--cr-ink-soft);
+  font-size: 0.76em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .cr-line {
   margin: 0;
   word-break: break-word;
