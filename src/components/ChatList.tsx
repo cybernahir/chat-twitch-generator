@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import { BadgeRow } from './Badge'
 import { PLATFORMS, platformLogo } from './ChatOverlay'
+import { FilaEncuesta } from './Poll'
 import type { ChatMessage, Deletion, Notice } from '../types'
 
 /**
@@ -142,7 +143,7 @@ function textoChip(notice: Notice): string {
  * El verbo ("renovó su sub", "trajo") se fue a la pastilla, así que acá sólo
  * quedan los números. Si no, la fila decía dos veces lo mismo.
  */
-function Datos({ notice }: { notice: Exclude<Notice, { kind: 'watch-streak' }> }) {
+function Datos({ notice }: { notice: Extract<Notice, { kind: 'sub' | 'resub' | 'raid' }> }) {
   if (notice.kind === 'raid') {
     if (notice.viewers === undefined) return null
     return (
@@ -207,6 +208,13 @@ const MessageRow = memo(function MessageRow({
   showPlatform,
 }: RowProps) {
   const plataforma = m.platform && showPlatform ? PLATFORMS[m.platform] : null
+
+  // Una encuesta no tiene autor, así que no entra en el renglón común —que
+  // arranca sí o sí con un nombre— y se dibuja aparte.
+  if (m.notice?.kind === 'poll') {
+    return <FilaEncuesta poll={m.notice.poll} hora={<Hora at={m.createdAt} />} />
+  }
+
 
   return (
     <article

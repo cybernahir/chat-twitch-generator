@@ -11,6 +11,14 @@ export interface TwitchAccount {
   userId: string
   login: string
   displayName: string
+  /**
+   * Si el token alcanza para leer las encuestas del canal.
+   *
+   * Es false en las vinculaciones hechas antes de que el flujo pidiera
+   * permisos: andan para todo lo demás, pero `/api/chat-poll` no puede
+   * preguntar nada con ellas y hay que rehacerlas.
+   */
+  puedeLeerEncuestas: boolean
 }
 
 export interface TwitchAccountState {

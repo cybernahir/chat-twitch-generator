@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ChatList from '../components/ChatList'
+import { TarjetaEncuesta } from '../components/Poll'
 import { DEFAULT_CONFIG } from '../defaults'
 import { HISTORY_MAX, clearHistory, loadHistory, saveHistory } from '../lib/chatHistory'
 import { useChatFeed } from '../lib/useChatFeed'
-import type { ChatConfig, ChatMessage } from '../types'
+import { useTwitchPoll } from '../lib/twitchPoll'
+import type { ChatConfig, ChatMessage, TwitchPoll } from '../types'
 import '../styles/chat.css'
 
 /**
@@ -113,6 +115,44 @@ export default function ChatPage() {
     showNotices: true,
   })
 
+  /* ---------------------- encuestas ---------------------- */
+
+  /**
+   * Las encuestas cerradas, como una fila más del chat.
+   *
+   * La tarjeta de arriba se va sola a los treinta segundos. Sin esto no
+   * quedaría rastro de que hubo una encuesta ni de qué ganó, que es justo lo
+   * que se quiere encontrar al volver al monitor.
+   *
+   * Van en un estado aparte y no en el feed porque no vienen del chat: las
+   * trae `/api/chat-poll`, que es otra fuente.
+   */
+  const [encuestas, setEncuestas] = useState<ChatMessage[]>([])
+
+  const anotarEncuesta = useCallback((poll: TwitchPoll) => {
+    setEncuestas((prev) => {
+      const id = `poll:${poll.id}`
+      if (prev.some((m) => m.id === id)) return prev
+
+      return [
+        ...prev,
+        {
+          id,
+          // Una encuesta no tiene autor; la fila se dibuja sin nombre.
+          user: '',
+          text: '',
+          color: '#ffffff',
+          badges: [],
+          createdAt: poll.endedAt ?? Date.now(),
+          notice: { kind: 'poll', poll },
+          platform: 'twitch',
+        },
+      ]
+    })
+  }, [])
+
+  const encuestaEnCurso = useTwitchPoll(anotarEncuesta)
+
   /* ---------------------- historial ---------------------- */
 
   // Lo que había antes de recargar. Se lee una sola vez, al montar.
@@ -126,10 +166,24 @@ export default function ChatPage() {
    * caso de recargar dos veces seguidas muy rápido.
    */
   const visibles = useMemo(() => {
-    if (!previos.length) return messages
-    const vistos = new Set(messages.map((m) => m.id))
-    return [...previos.filter((m) => !vistos.has(m.id)), ...messages].slice(-HISTORY_MAX)
-  }, [previos, messages])
+    let base = messages
+    if (previos.length) {
+      const vistos = new Set(messages.map((m) => m.id))
+      base = [...previos.filter((m) => !vistos.has(m.id)), ...messages].slice(-HISTORY_MAX)
+    }
+
+    // Las encuestas cerradas entran por su hora y no al final: mientras la
+    // encuesta corría pudieron llegar mensajes, y la fila tiene que quedar
+    // donde pasó. Después de un F5 ya vienen en el historial, así que acá se
+    // descartan por id y la lista sigue de largo.
+    if (!encuestas.length) return base
+
+    const yaEstan = new Set(base.map((m) => m.id))
+    const nuevas = encuestas.filter((m) => !yaEstan.has(m.id))
+    if (!nuevas.length) return base
+
+    return [...base, ...nuevas].sort((a, b) => a.createdAt - b.createdAt).slice(-HISTORY_MAX)
+  }, [previos, messages, encuestas])
 
   /**
    * Guardado espaciado.
@@ -182,6 +236,7 @@ export default function ChatPage() {
     }
     setConfirmando(false)
     setPrevios([])
+    setEncuestas([])
     clear()
     clearHistory()
   }
@@ -280,6 +335,11 @@ export default function ChatPage() {
           {confirmando ? '¿Seguro?' : 'Limpiar'}
         </button>
       </header>
+
+      {/* Fija arriba de la lista y no adentro: la tarjeta cambia cada tres
+          segundos y mezclada entre los mensajes se iría de pantalla justo
+          cuando se la quiere mirar. */}
+      {encuestaEnCurso && <TarjetaEncuesta poll={encuestaEnCurso} />}
 
       <div className="cr-list" ref={listRef} onScroll={onScroll} style={{ fontSize: size }}>
         {visibles.length === 0 && (

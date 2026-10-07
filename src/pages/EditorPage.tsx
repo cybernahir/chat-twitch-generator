@@ -507,6 +507,21 @@ export default function EditorPage({ presetId, presets, mode, loading, onPresets
                         </button>
                       )}
 
+                      {/* Una vinculación hecha antes de que esto pidiera
+                          permisos sirve para todo lo de antes, pero no para
+                          leer las encuestas. Sin este aviso, la pantalla de
+                          lectura simplemente no mostraría ninguna y no habría
+                          forma de saber por qué. */}
+                      {!twitchAccount.account.puedeLeerEncuestas && (
+                        <p className="uploader-warn">
+                          <WarningCircle size={15} weight="fill" />
+                          <span>
+                            Esta vinculación es de antes y no alcanza para ver las encuestas en la
+                            pantalla de lectura. Desvinculá y volvé a conectar para darle el
+                            permiso de lectura.
+                          </span>
+                        </p>
+                      )}
                     </div>
                   )}
 

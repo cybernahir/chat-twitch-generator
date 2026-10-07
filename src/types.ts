@@ -89,6 +89,41 @@ export type Notice =
    * de depender de un tag que no pude confirmar.
    */
   | { kind: 'raid'; viewers?: number }
+  /**
+   * Se cerró una encuesta.
+   *
+   * El único de estos avisos que **no** llega por el chat: las encuestas no
+   * viajan por IRC. Las trae `/api/chat-poll`, que las lee con el token de la
+   * cuenta vinculada. Por eso tampoco tiene autor — una encuesta no la escribe
+   * nadie— y la fila se dibuja aparte, sin nombre.
+   */
+  | { kind: 'poll'; poll: TwitchPoll }
+
+/** Una opción de una encuesta, con lo que lleva votado. */
+export interface PollChoice {
+  id: string
+  title: string
+  /** Votos sueltos y por puntos de canal, ya sumados por Twitch. */
+  votes: number
+}
+
+/**
+ * Una encuesta del canal, tal como la deja `/api/chat-poll`.
+ *
+ * Son los totales por opción y nada más: Twitch **no** dice quién votó qué, ni
+ * siquiera al dueño del canal. Lo que se puede mostrar es cómo va y qué ganó.
+ */
+export interface TwitchPoll {
+  id: string
+  title: string
+  choices: PollChoice[]
+  /** `ended` tapa las dos formas de terminar: que se cumpla el tiempo o que la corten. */
+  status: 'active' | 'ended'
+  startedAt: number
+  /** Cuándo debería cerrarse, según la duración que eligió la streamer. */
+  endsAt: number
+  endedAt?: number
+}
 
 export interface ChatMessage {
   id: string

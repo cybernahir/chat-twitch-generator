@@ -38,6 +38,16 @@ const STORE = 'twitch-account'
 const KEY = 'default'
 const STATE_COOKIE = 'cg_twitch_state'
 
+/**
+ * Permiso para leer las encuestas del canal.
+ *
+ * Es el unico que se pide, y es de lectura. Twitch solo le muestra las
+ * encuestas al dueño del canal, asi que sin esto `/api/chat-poll` no tiene con
+ * que preguntar. `channel:manage:polls` tambien serviria, pero deja *crear* y
+ * *cerrar* encuestas, que no hace falta para mostrarlas.
+ */
+const SCOPE_ENCUESTAS = 'channel:read:polls'
+
 const AUTH_URL = 'https://id.twitch.tv/oauth2/authorize'
 const TOKEN_URL = 'https://id.twitch.tv/oauth2/token'
 const HELIX = 'https://api.twitch.tv/helix'
@@ -50,6 +60,13 @@ interface StoredAccount {
   refreshToken: string
   /** Epoch ms en el que vence el access token. */
   expiresAt: number
+  /**
+   * Permisos que Twitch termino dando, tal como los devolvio al canjear el
+   * codigo. Se guardan para poder avisar en el editor que una vinculacion
+   * vieja —hecha cuando esto no pedia ninguno— no alcanza para las encuestas,
+   * en vez de que la pantalla de lectura no muestre nada y no se sepa por que.
+   */
+  scopes?: string[]
 }
 
 /** Lo unico que el navegador llega a ver de la cuenta. */
@@ -57,6 +74,8 @@ interface PublicAccount {
   userId: string
   login: string
   displayName: string
+  /** false en una vinculacion vieja: hay que rehacerla para ver las encuestas. */
+  puedeLeerEncuestas: boolean
 }
 
 function json(body: unknown, status = 200): Response {
@@ -107,7 +126,12 @@ async function clearAccount(): Promise<void> {
 }
 
 function toPublic(account: StoredAccount): PublicAccount {
-  return { userId: account.userId, login: account.login, displayName: account.displayName }
+  return {
+    userId: account.userId,
+    login: account.login,
+    displayName: account.displayName,
+    puedeLeerEncuestas: (account.scopes ?? []).includes(SCOPE_ENCUESTAS),
+  }
 }
 
 /* ------------------------------ tokens ------------------------------ */
@@ -116,6 +140,8 @@ interface TokenResponse {
   access_token: string
   refresh_token: string
   expires_in: number
+  /** Twitch devuelve los permisos concedidos como lista. */
+  scope?: string[]
 }
 
 async function exchangeCode(code: string, redirectUri: string): Promise<TokenResponse> {
@@ -271,8 +297,8 @@ export default async function handler(req: Request): Promise<Response> {
       authorize.searchParams.set('client_id', clientId)
       authorize.searchParams.set('redirect_uri', redirectUri)
       authorize.searchParams.set('response_type', 'code')
-      // Sin scopes: solo necesitamos identidad y las insignias del canal.
-      authorize.searchParams.set('scope', '')
+      // La identidad y las insignias no piden ninguno; el de encuestas si.
+      authorize.searchParams.set('scope', SCOPE_ENCUESTAS)
       authorize.searchParams.set('state', state)
 
       const secure = url.protocol === 'https:' ? '; Secure' : ''
@@ -308,6 +334,7 @@ export default async function handler(req: Request): Promise<Response> {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
         expiresAt: Date.now() + tokens.expires_in * 1000,
+        scopes: tokens.scope ?? [],
       }
 
       const me = await helix(tokens.access_token, '/users')

@@ -29,6 +29,13 @@ export default defineConfig({
         target: 'https://chat-twitch-generator.netlify.app',
         changeOrigin: true,
       },
+      // La encuesta del canal. Entra en la misma lista cerrada: es publica y de
+      // solo lectura, y en local no hay Blobs con la cuenta vinculada, asi que
+      // sin esto la pantalla de lectura nunca mostraria una encuesta.
+      '^/api/chat-poll': {
+        target: 'https://chat-twitch-generator.netlify.app',
+        changeOrigin: true,
+      },
       '^/api/preset/': {
         target: 'https://chat-twitch-generator.netlify.app',
         changeOrigin: true,

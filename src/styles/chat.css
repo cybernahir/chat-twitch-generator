@@ -557,3 +557,188 @@
     margin-left: auto;
   }
 }
+
+/* ---------------- Encuestas ---------------- */
+
+/* Naranja: es el unico tono que quedaba libre entre los eventos (violeta para
+   los subs, ambar para las rachas, verde para el primer mensaje, cian para las
+   raids, rosa para los bits) y no se confunde con ninguno de un vistazo. */
+.cr-encuesta,
+.cr-msg.is-encuesta {
+  --evento: #ff7a45;
+  --evento-texto: #2b0d04;
+}
+
+/* La tarjeta va fija entre el encabezado y la lista, fuera del scroll: una
+   encuesta dura minutos y tiene que poder mirarse mientras el chat sigue
+   corriendo abajo. */
+.cr-encuesta {
+  flex: 0 0 auto;
+  padding: 11px 16px 13px;
+  /* Respaldo por si `color-mix` no esta disponible. */
+  background: var(--cr-surface);
+  /* Tenida con el color del evento: con el gris del encabezado, que es el
+     mismo, las dos franjas se leian como una sola barra de titulo. */
+  background: color-mix(in srgb, var(--evento) 9%, var(--cr-surface));
+  border-bottom: 1px solid var(--cr-line);
+  border-left: 5px solid var(--evento);
+}
+
+.cr-encuesta-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cr-encuesta-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--evento);
+  color: var(--evento-texto);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.015em;
+}
+
+/* El tiempo que falta. En cifras tabulares porque cambia una vez por segundo:
+   sin eso, el ancho baila y el renglon entero tiembla. */
+.cr-encuesta-reloj {
+  color: var(--cr-ink-soft);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.cr-encuesta-titulo {
+  margin: 8px 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--cr-ink);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Cerrada: pierde el borde vivo y queda como un resumen, para que no compita
+   con una encuesta nueva si se abre otra enseguida. */
+.cr-encuesta.is-cerrada {
+  border-left-color: color-mix(in srgb, var(--evento) 45%, transparent);
+}
+
+/* ---- Las opciones, compartidas por la tarjeta y la fila del chat ---- */
+
+.cr-encuesta-opciones {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.cr-encuesta-fila {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 3px;
+}
+
+.cr-encuesta-opcion {
+  min-width: 0;
+  flex: 1 1 auto;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Los numeros se van a la derecha y en tabulares: asi el porcentaje queda en
+   columna y se comparan las opciones sin leerlas. */
+.cr-encuesta-numeros {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cr-encuesta-numeros b {
+  font-weight: 800;
+}
+
+.cr-encuesta-votos {
+  color: var(--cr-ink-soft);
+  font-size: 0.85em;
+}
+
+.cr-encuesta-barra {
+  height: 6px;
+  border-radius: 999px;
+  /* Respaldo por si `color-mix` no esta disponible. */
+  background: rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--cr-ink) 10%, transparent);
+  overflow: hidden;
+}
+
+.cr-encuesta-barra i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--evento) 55%, transparent);
+  /* Los votos entran de a poco y la barra se mueve seguido: sin la transicion
+     cada pedido da un salto. */
+  transition: width 400ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* La ganadora, una vez cerrada. Mientras corre no se marca ninguna: el puntero
+   cambia de opcion con cada voto y la marca terminaba siendo una luz que
+   parpadea en vez de un dato. */
+.cr-encuesta-opciones .is-ganadora .cr-encuesta-barra i {
+  background: var(--evento);
+}
+
+.cr-encuesta-opciones .is-ganadora .cr-encuesta-opcion,
+.cr-encuesta-opciones .is-ganadora .cr-encuesta-numeros b {
+  font-weight: 800;
+  color: var(--evento);
+}
+
+.cr-encuesta-total {
+  margin: 9px 0 0;
+  color: var(--cr-ink-soft);
+  font-size: 0.8em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cr-encuesta-barra i {
+    transition: none;
+  }
+}
+
+/* ---- La fila que queda en el chat ---- */
+
+/* Hereda todo el tratamiento de evento (bloque propio, barra de 5px, fondo
+   tenido, entrada corta); lo unico suyo es que el titulo va en la linea de la
+   hora, porque no hay nombre que poner ahi. */
+.cr-encuesta-linea {
+  display: flex;
+  align-items: baseline;
+  gap: 0.2em;
+  margin: 0 0 8px;
+}
+
+.cr-encuesta-titulo-fila {
+  font-weight: 700;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Adentro de la fila el texto va al tamano del chat, que es ajustable, asi que
+   las medidas fijas de la tarjeta no sirven. */
+.cr-msg.is-encuesta .cr-encuesta-opciones {
+  font-size: 0.92em;
+}
+
+.cr-msg.is-encuesta .cr-encuesta-total {
+  font-size: 0.78em;
+}

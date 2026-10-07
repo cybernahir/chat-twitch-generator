@@ -165,6 +165,45 @@ es la hora en que la persona lo escribió, no la hora en que llegó acá, y lo q
 se restaura después de un F5 conserva la suya en vez de amontonarse en el
 momento de la recarga.
 
+### Encuestas
+
+Cuando se abre una encuesta en el canal, arriba de la lista aparece una tarjeta
+fija con el título, cada opción, su porcentaje y una barra que se va moviendo.
+Al cerrarse, la tarjeta muestra la ganadora treinta segundos más y después se va
+sola; en el chat queda una fila con el resultado final, así que al volver al
+monitor se ve que hubo una encuesta y qué ganó.
+
+**Hay que vincular la cuenta de Twitch desde el editor**, y tiene que ser la del
+canal. Las encuestas no viajan por IRC: la conexión anónima con la que se lee el
+chat no las ve nunca, y Twitch sólo se las muestra al dueño del canal con un
+token que traiga `channel:read:polls`. Si la vinculación es anterior a esto, el
+editor avisa que hay que rehacerla — antes el flujo no pedía ningún permiso.
+
+El token nunca sale al navegador. `/chat` le pregunta a `/api/chat-poll`, que lo
+usa del lado del servidor y devuelve nada más que el título, las opciones y los
+votos. El `broadcaster_id` sale siempre de la cuenta guardada y nunca de la
+query: es un endpoint que lee una sola cosa de un solo canal, no un proxy a
+Helix. Es público, como el de las insignias, así que quien lo llame ve la
+encuesta — lo mismo que ve cualquiera que esté mirando el stream.
+
+**Lo que no se puede ver es quién votó qué.** Twitch no lo expone, ni siquiera al
+dueño del canal. Lo que hay son los totales por opción.
+
+Se pregunta cada 3 segundos con una encuesta abierta y cada 25 sin nada, y se
+corta con la pestaña tapada. No es caprichoso: cada vuelta es una invocación de
+la function y la pantalla queda abierta todo el stream; a 25 segundos, ocho horas
+salen unas 1150 llamadas. Preguntar en vez de que Twitch empuje por EventSub
+también es a propósito: por WebSocket hay que crear la suscripción *con el token
+del canal* para la sesión de cada cliente, o sea un endpoint público que gasta
+suscripciones de la cuenta a pedido de cualquiera, y del lado del servidor no se
+puede sostener el socket porque las functions son efímeras. Para algo que dura
+entre 15 segundos y media hora, no valía la pena.
+
+Las encuestas archivadas o bajadas por Twitch (`ARCHIVED`, `MODERATED`) no se
+muestran: es algo que alguien eligió esconder.
+
+Kick no tiene nada equivalente, así que esto es sólo de Twitch.
+
 ### Respuestas
 
 Cuando alguien contesta a otro mensaje, arriba se muestra el original citado,
